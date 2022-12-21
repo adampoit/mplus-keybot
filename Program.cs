@@ -72,19 +72,37 @@ discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
 	switch (command.Data.Name)
 	{
 		case "follow":
-			var characterName = command.Data.Options.First(x => x.Name == "character").Value as string;
-			var realm = command.Data.Options.First(x => x.Name == "realm").Value as string;
-			var region = command.Data.Options.First(x => x.Name == "region").Value as string;
+			var characterName = (command.Data.Options.First(x => x.Name == "character").Value as string)!;
+			var realm = (command.Data.Options.First(x => x.Name == "realm").Value as string)!;
+			var region = (command.Data.Options.First(x => x.Name == "region").Value as string)!;
 
-			var character = new Character
+			var profile = await GetCharacterAsync(client, characterName, realm, region, apiCallPolicy).ConfigureAwait(false);
+			if (profile is null)
 			{
-				Name = characterName!,
-				Realm = realm!,
-				Region = region!,
-			};
-			db.Insert(character);
+				var embed = new EmbedBuilder()
+					.WithColor(Color.Red)
+					.WithDescription($@"Error! Unable to follow character.{Environment.NewLine}{Environment.NewLine}To follow a character, the general format is `/follow character realm region`.");
 
-			await command.RespondAsync($"Now following {characterName} on {realm}-{region}!").ConfigureAwait(false);
+				await command.RespondAsync(embed: embed.Build()).ConfigureAwait(false);
+			}
+			else
+			{
+				var runId = GetMostRecentRunId(profile);
+				var character = new Character
+				{
+					Name = characterName!,
+					Realm = realm!,
+					Region = region!,
+					MostRecentRunId = runId,
+				};
+				var rowsInserted = db.Insert(character, "OR IGNORE");
+
+				if (rowsInserted == 1)
+					await command.RespondAsync($"Now following {characterName} on {realm}-{region}!").ConfigureAwait(false);
+				else
+					await command.RespondAsync($"Already following {characterName} on {realm}-{region}!").ConfigureAwait(false);
+			}
+
 			break;
 		default:
 			throw new InvalidOperationException($"Unknown slash command {command.Data.Name}!");
@@ -103,34 +121,49 @@ while (!cts.IsCancellationRequested)
 	var guild = discordClient.Guilds.Single();
 	var channel = guild.Channels.Single(c => c.Name == config["Discord:Channel"]) as IMessageChannel;
 
+	var charactersToUpdate = new List<Character>();
+	var runIds = new HashSet<string>();
 	foreach (var character in db.Table<Character>())
 	{
-		var profile = await GetJsonAsync<CharacterDto>(client, $"https://raider.io/api/v1/characters/profile?region={character.Region}&realm={character.Realm}&name={character.Name}&fields=mythic_plus_recent_runs", apiCallPolicy).ConfigureAwait(false);
+		var profile = await GetCharacterAsync(client, character.Name, character.Realm, character.Region, apiCallPolicy).ConfigureAwait(false);
 		if (profile is null)
 			continue;
 
-		var run = profile.Mythic_Plus_Recent_Runs.First();
-		var percentage = (double)run.Clear_Time_Ms / (double)run.Par_Time_Ms;
-		var percentageString = percentage < 1 ? $"{1 - percentage:P1} remaining" : $"{percentage - 1:P1} over";
+		runIds.UnionWith(profile.Mythic_Plus_Recent_Runs
+			.Select(run => GetRunId(run))
+			.Where(runId => runId is not null)
+			.Cast<string>()
+			.TakeWhile(runId => runId != character.MostRecentRunId));
+		character.MostRecentRunId = GetMostRecentRunId(profile);
+	}
 
-		var runId = string.Join("", new Uri(run.Url).Segments.TakeLast(2));
-		var additionalRunInfo = await GetJsonAsync<MythicPlusRunDto>(client, $"https://raider.io/api/mythic-plus/runs/{runId}", apiCallPolicy).ConfigureAwait(false);
-		if (additionalRunInfo is null)
+	foreach (var runId in runIds)
+	{
+		var runInfo = (await GetJsonAsync<MythicPlusRunDto>(client, $"https://raider.io/api/mythic-plus/runs/{runId}", apiCallPolicy).ConfigureAwait(false))?.KeystoneRun;
+		if (runInfo is null)
 			continue;
 
-		var rosterString = string.Join(Environment.NewLine, additionalRunInfo.KeystoneRun.Roster.OrderBy(r => r.Role).Select(r => $"{GetRoleEmoji(r.Role)} [{r.Character.Name.Split('-')[0]}](https://raider.io{r.Character.Path}) - **{r.Role}** ({r.Character.Spec.Name} {r.Character.Class.Name}) - {r.Ranks.Score:0} Score"));
+		var percentage = (double)runInfo.Clear_Time_Ms / (double)runInfo.Keystone_Time_Ms;
+		var percentageString = percentage < 1 ? $"{1 - percentage:P1} remaining" : $"{percentage - 1:P1} over";
+
+		var rosterString = string.Join(Environment.NewLine, runInfo.Roster
+			.OrderBy(r => r.Role)
+			.Select(r => $"{GetRoleEmoji(r.Role)} [{r.Character.Name.Split('-')[0]}](https://raider.io{r.Character.Path}) - **{r.Role}** ({r.Character.Spec.Name} {r.Character.Class.Name}) - {r.Ranks.Score:0} Score"));
 
 		var embed = new EmbedBuilder()
 			.WithFooter(footer => footer.Text = "Data provided by Raider.IO")
-			.WithTitle($"+{run.Mythic_Level} {run.Dungeon}")
+			.WithTitle($"+{runInfo.Mythic_Level} {runInfo.Dungeon.Name}")
 			.WithColor(Color.Gold)
-			.WithDescription($@"Cleared in {TimeSpan.FromMilliseconds(run.Clear_Time_Ms):mm':'ss} of {TimeSpan.FromMilliseconds(run.Par_Time_Ms):mm':'ss} ({percentageString}).{Environment.NewLine}{Environment.NewLine}{rosterString}")
+			.WithDescription($@"Cleared in {TimeSpan.FromMilliseconds(runInfo.Clear_Time_Ms):mm':'ss} of {TimeSpan.FromMilliseconds(runInfo.Keystone_Time_Ms):mm':'ss} ({percentageString}).{Environment.NewLine}{Environment.NewLine}{rosterString}")
 			.WithUrl($"https://raider.io/mythic-plus-runs/{runId}")
-			.WithImageUrl($"https://cdnassets.raider.io/images/dungeons/expansion{additionalRunInfo.KeystoneRun.Dungeon.Expansion_Id}/base/{additionalRunInfo.KeystoneRun.Dungeon.Slug}.jpg")
-			.WithTimestamp(DateTimeOffset.Parse(run.Completed_At));
+			.WithImageUrl($"https://cdnassets.raider.io/images/dungeons/expansion{runInfo.Dungeon.Expansion_Id}/base/{runInfo.Dungeon.Slug}.jpg")
+			.WithTimestamp(DateTimeOffset.Parse(runInfo.Completed_At));
 
 		await channel!.SendMessageAsync(embed: embed.Build()).ConfigureAwait(false);
 	}
+
+	foreach (var character in charactersToUpdate)
+		db.InsertOrReplace(character);
 
 	try
 	{
@@ -140,6 +173,13 @@ while (!cts.IsCancellationRequested)
 }
 
 await discordClient.LogoutAsync().ConfigureAwait(false);
+
+static async Task<CharacterDto?> GetCharacterAsync(HttpClient client, string name, string realm, string region, AsyncPolicyWrap<HttpResponseMessage> apiCallPolicy) =>
+	await GetJsonAsync<CharacterDto>(client, $"https://raider.io/api/v1/characters/profile?region={region}&realm={realm}&name={name}&fields=mythic_plus_recent_runs", apiCallPolicy).ConfigureAwait(false);
+
+static string? GetMostRecentRunId(CharacterDto character) => GetRunId(character.Mythic_Plus_Recent_Runs.FirstOrDefault());
+
+static string? GetRunId(MythicPlusRecentRunDto? run) => run is null ? null : string.Join("", new Uri(run.Url).Segments.TakeLast(2));
 
 static async Task<T?> GetJsonAsync<T>(HttpClient client, string url, AsyncPolicyWrap<HttpResponseMessage> apiCallPolicy)
 {
@@ -197,6 +237,10 @@ sealed class MythicPlusKeystoneRunDto
 {
 	public IReadOnlyList<RosterMemberDto> Roster { get; set; }
 	public DungeonDto Dungeon { get; set; }
+	public int Mythic_Level { get; set; }
+	public int Clear_Time_Ms { get; set; }
+	public int Keystone_Time_Ms { get; set; }
+	public string Completed_At { get; set; }
 }
 
 sealed class DungeonDto
@@ -237,7 +281,11 @@ sealed class Character
 {
 	[PrimaryKey, AutoIncrement]
 	public int Id { get; set; }
+	[Unique(Name = "UK_Character_Name_Realm_Region"), Collation("NOCASE")]
 	public string Name { get; set; }
+	[Unique(Name = "UK_Character_Name_Realm_Region"), Collation("NOCASE")]
 	public string Realm { get; set; }
+	[Unique(Name = "UK_Character_Name_Realm_Region"), Collation("NOCASE")]
 	public string Region { get; set; }
+	public string? MostRecentRunId { get; set; }
 }
