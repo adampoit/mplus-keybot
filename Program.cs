@@ -13,6 +13,7 @@ using Polly.Wrap;
 using SQLite;
 
 var host = Host.CreateDefaultBuilder(args)
+	.UseSystemd()
 	.ConfigureServices(services =>
 	{
 		services.AddHostedService<BotService>();
