@@ -147,6 +147,8 @@ sealed class BotService : BackgroundService
 					.Cast<string>()
 					.TakeWhile(runId => runId != character.MostRecentRunId));
 				character.MostRecentRunId = GetMostRecentRunId(profile);
+
+				charactersToUpdate.Add(character);
 			}
 
 			foreach (var runId in runIds)
@@ -174,8 +176,7 @@ sealed class BotService : BackgroundService
 				await channel!.SendMessageAsync(embed: embed.Build()).ConfigureAwait(false);
 			}
 
-			foreach (var character in charactersToUpdate)
-				db.InsertOrReplace(character);
+			db.UpdateAll(charactersToUpdate);
 
 			await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken).ConfigureAwait(false);
 		}
