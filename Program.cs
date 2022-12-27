@@ -16,8 +16,6 @@ var host = Host.CreateDefaultBuilder(args)
 	.UseSystemd()
 	.ConfigureServices((context, services) =>
 	{
-		services.AddHostedService<BotService>();
-
 		services.AddHttpClient<RaiderIOClient>();
 		services.AddSingleton<DiscordSocketClient>();
 		services.AddSingleton<RaiderIOClient>();
@@ -65,112 +63,92 @@ var host = Host.CreateDefaultBuilder(args)
 	})
 	.Build();
 
-host.Run();
+var discordClient = host.Services.GetRequiredService<DiscordSocketClient>();
+var logger = host.Services.GetRequiredService<ILogger<DiscordSocketClient>>();
+var config = host.Services.GetRequiredService<IConfiguration>();
+var raiderIOClient = host.Services.GetRequiredService<RaiderIOClient>();
+var db = host.Services.GetRequiredService<SQLiteConnection>();
 
-sealed class BotService : BackgroundService
+discordClient.Log += (LogMessage msg) =>
 {
-	public BotService(ILogger<BotService> logger, IConfiguration config, SQLiteConnection db, DiscordSocketClient discordClient, RaiderIOClient raiderIOClient)
+	logger.LogInformation(msg.ToString());
+
+	return Task.CompletedTask;
+};
+
+await discordClient.LoginAsync(TokenType.Bot, config["Discord:Token"]).ConfigureAwait(false);
+await discordClient.StartAsync().ConfigureAwait(false);
+var ready = false;
+discordClient.Ready += async () =>
+{
+	var guild = discordClient.Guilds.Single();
+	var guildCommand = new SlashCommandBuilder();
+	guildCommand
+		.WithName("follow")
+		.WithDescription("Follows a specific character on Raider.IO.")
+		.AddOption("character", ApplicationCommandOptionType.String, "Your character name.", isRequired: true)
+		.AddOption("realm", ApplicationCommandOptionType.String, "Your character's server.", isRequired: true)
+		.AddOption("region", ApplicationCommandOptionType.String, "Your character's region.", isRequired: true);
+
+	try
 	{
-		m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		m_config = config ?? throw new ArgumentNullException(nameof(config));
-		m_db = db ?? throw new ArgumentNullException(nameof(db));
-		m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
-		m_raiderIOClient = raiderIOClient ?? throw new ArgumentNullException(nameof(raiderIOClient));
+		await guild.CreateApplicationCommandAsync(guildCommand.Build()).ConfigureAwait(false);
+	}
+	catch (HttpException exception)
+	{
+		var json = JsonConvert.SerializeObject(exception.Errors, Formatting.Indented);
+		logger.LogError(json);
 	}
 
-	protected async override Task ExecuteAsync(CancellationToken stoppingToken)
+	ready = true;
+
+	return;
+};
+discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
+{
+	switch (command.Data.Name)
 	{
-		m_discordClient.Log += (LogMessage msg) =>
-		{
-			Console.WriteLine(msg.ToString());
+		case "follow":
+			var characterName = (command.Data.Options.First(x => x.Name == "character").Value as string)!;
+			var realm = (command.Data.Options.First(x => x.Name == "realm").Value as string)!;
+			var region = (command.Data.Options.First(x => x.Name == "region").Value as string)!;
 
-			return Task.CompletedTask;
-		};
-
-		await m_discordClient.LoginAsync(TokenType.Bot, m_config["Discord:Token"]).ConfigureAwait(false);
-		await m_discordClient.StartAsync().ConfigureAwait(false);
-
-		var ready = false;
-		m_discordClient.Ready += async () =>
-		{
-			var guild = m_discordClient.Guilds.Single();
-			var guildCommand = new SlashCommandBuilder();
-			guildCommand
-				.WithName("follow")
-				.WithDescription("Follows a specific character on Raider.IO.")
-				.AddOption("character", ApplicationCommandOptionType.String, "Your character name.", isRequired: true)
-				.AddOption("realm", ApplicationCommandOptionType.String, "Your character's server.", isRequired: true)
-				.AddOption("region", ApplicationCommandOptionType.String, "Your character's region.", isRequired: true);
-
-			try
+			var profile = await raiderIOClient.GetCharacterAsync(characterName, realm, region).ConfigureAwait(false);
+			if (profile is null)
 			{
-				await guild.CreateApplicationCommandAsync(guildCommand.Build()).ConfigureAwait(false);
+				var embed = new EmbedBuilder()
+					.WithColor(Color.Red)
+					.WithDescription($@"Error! Unable to follow character.{Environment.NewLine}{Environment.NewLine}To follow a character, the general format is `/follow character realm region`.");
+
+				await command.RespondAsync(embed: embed.Build()).ConfigureAwait(false);
 			}
-			catch (HttpException exception)
+			else
 			{
-				var json = JsonConvert.SerializeObject(exception.Errors, Formatting.Indented);
-				Console.WriteLine(json);
+				var runId = profile.Mythic_Plus_Recent_Runs.FirstOrDefault()?.RunId;
+				var character = new Character
+				{
+					Name = characterName!,
+					Realm = realm!,
+					Region = region!,
+					MostRecentRunId = runId,
+				};
+				var rowsInserted = db.Insert(character, "OR IGNORE");
+
+				if (rowsInserted == 1)
+					await command.RespondAsync($"Now following {characterName} on {realm}-{region}!").ConfigureAwait(false);
+				else
+					await command.RespondAsync($"Already following {characterName} on {realm}-{region}!").ConfigureAwait(false);
 			}
 
-			ready = true;
-
-			return;
-		};
-		m_discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
-		{
-			switch (command.Data.Name)
-			{
-				case "follow":
-					var characterName = (command.Data.Options.First(x => x.Name == "character").Value as string)!;
-					var realm = (command.Data.Options.First(x => x.Name == "realm").Value as string)!;
-					var region = (command.Data.Options.First(x => x.Name == "region").Value as string)!;
-
-					var profile = await m_raiderIOClient.GetCharacterAsync(characterName, realm, region).ConfigureAwait(false);
-					if (profile is null)
-					{
-						var embed = new EmbedBuilder()
-							.WithColor(Color.Red)
-							.WithDescription($@"Error! Unable to follow character.{Environment.NewLine}{Environment.NewLine}To follow a character, the general format is `/follow character realm region`.");
-
-						await command.RespondAsync(embed: embed.Build()).ConfigureAwait(false);
-					}
-					else
-					{
-						var runId = profile.Mythic_Plus_Recent_Runs.FirstOrDefault()?.RunId;
-						var character = new Character
-						{
-							Name = characterName!,
-							Realm = realm!,
-							Region = region!,
-							MostRecentRunId = runId,
-						};
-						var rowsInserted = m_db.Insert(character, "OR IGNORE");
-
-						if (rowsInserted == 1)
-							await command.RespondAsync($"Now following {characterName} on {realm}-{region}!").ConfigureAwait(false);
-						else
-							await command.RespondAsync($"Already following {characterName} on {realm}-{region}!").ConfigureAwait(false);
-					}
-
-					break;
-				default:
-					throw new InvalidOperationException($"Unknown slash command {command.Data.Name}!");
-			}
-		};
-		while (!ready) { }
-
-		await Task.Delay(Timeout.Infinite, stoppingToken).ConfigureAwait(false);
-
-		await m_discordClient.LogoutAsync().ConfigureAwait(false);
+			break;
+		default:
+			throw new InvalidOperationException($"Unknown slash command {command.Data.Name}!");
 	}
+};
 
-	private readonly ILogger<BotService> m_logger;
-	private readonly IConfiguration m_config;
+while (!ready) { }
 
-	private readonly SQLiteConnection m_db;
-	private readonly DiscordSocketClient m_discordClient;
-	private readonly RaiderIOClient m_raiderIOClient;
-}
+host.Run();
 
 sealed class ConsoleLogProvider : ILogProvider
 {
