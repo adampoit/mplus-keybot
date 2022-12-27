@@ -19,15 +19,6 @@ public sealed class CheckRunsJob : IJob
 
 	public async Task Execute(IJobExecutionContext context)
 	{
-		/* var ready = false;
-		m_discordClient.Ready += () =>
-		{
-			ready = true;
-
-			return Task.CompletedTask;
-		};
-		while (!ready) { } */
-
 		var stopwatch = Stopwatch.StartNew();
 		m_logger.LogInformation($"Starting {nameof(CheckRunsJob)} job.");
 
