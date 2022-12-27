@@ -26,6 +26,7 @@ var host = Host.CreateDefaultBuilder(args)
 			var db = new SQLiteConnection("mplus-data.db");
 
 			db.CreateTable<Character>();
+			db.CreateTable<AffixInfo>();
 
 			return db;
 		});
@@ -42,11 +43,19 @@ var host = Host.CreateDefaultBuilder(args)
 			});
 
 			q.ScheduleJob<CheckRunsJob>(trigger => trigger
-				.WithIdentity("Combined Configuration Trigger")
+				.WithIdentity("Every 5 Minutes")
 				.WithSimpleSchedule(x => x
 					.WithIntervalInMinutes(5)
 					.RepeatForever())
-				.WithDescription("my awesome trigger configured for a job with single call")
+				.WithDescription("Checks Raider.IO for recent mythic plus runs on followed characters.")
+			);
+
+			q.ScheduleJob<CheckAffixesJob>(trigger => trigger
+				.WithIdentity("Every Hour")
+				.WithSimpleSchedule(x => x
+					.WithIntervalInMinutes(60)
+					.RepeatForever())
+				.WithDescription("Checks Raider.IO for updated weekly affixes.")
 			);
 		});
 		services.AddQuartzHostedService(opt =>

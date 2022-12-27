@@ -27,6 +27,8 @@ public sealed class RaiderIOClient
 
 	public async Task<MythicPlusRunDto?> GetMythicPlusRunAsync(string runId) => await GetJsonAsync<MythicPlusRunDto>(m_client, $"https://raider.io/api/mythic-plus/runs/{runId}", m_apiCallPolicy).ConfigureAwait(false);
 
+	public async Task<Affixes?> GetAffixes() => await GetJsonAsync<Affixes>(m_client, "https://raider.io/api/v1/mythic-plus/affixes?region=us&locale=en", m_apiCallPolicy).ConfigureAwait(false);
+
 	private static async Task<T?> GetJsonAsync<T>(HttpClient client, string url, AsyncPolicyWrap<HttpResponseMessage> apiCallPolicy)
 	{
 		var result = await apiCallPolicy.ExecuteAsync(async () => await client.GetAsync(url).ConfigureAwait(false)).ConfigureAwait(false);
@@ -119,4 +121,9 @@ public enum Role
 	Tank,
 	Healer,
 	Dps,
+}
+
+public sealed class Affixes
+{
+	public string Title { get; set; }
 }
