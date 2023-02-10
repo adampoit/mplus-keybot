@@ -41,6 +41,7 @@ public sealed class CheckRunsJob : IJob
 			charactersToUpdate.Add(character);
 		}
 
+		var embeds = new List<Embed>();
 		foreach (var runId in runIds)
 		{
 			var runInfo = (await m_raiderIOClient.GetMythicPlusRunAsync(runId).ConfigureAwait(false))?.KeystoneRun;
@@ -63,8 +64,11 @@ public sealed class CheckRunsJob : IJob
 				.WithImageUrl($"https://cdnassets.raider.io/images/dungeons/expansion{runInfo.Dungeon.Expansion_Id}/base/{runInfo.Dungeon.Slug}.jpg")
 				.WithTimestamp(DateTimeOffset.Parse(runInfo.Completed_At));
 
-			await channel!.SendMessageAsync(embed: embed.Build()).ConfigureAwait(false);
+			embeds.Add(embed.Build());
 		}
+
+		foreach (var embed in embeds.OrderBy(x => x.Timestamp))
+			await channel!.SendMessageAsync(embed: embed).ConfigureAwait(false);
 
 		m_db.UpdateAll(charactersToUpdate);
 		m_logger.LogInformation($"Finished {nameof(CheckRunsJob)} job after {stopwatch.Elapsed}.");
