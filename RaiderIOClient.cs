@@ -15,7 +15,10 @@ public sealed class RaiderIOClient
 			.Handle<RateLimitRejectedException>()
 			.WaitAndRetryForeverAsync((retryAttempt, exception, context) => (exception as RateLimitRejectedException)!.RetryAfter, (_, _, _) => Task.CompletedTask);
 		var retryPolicy = Policy
-			.HandleResult<HttpResponseMessage>(r => r.StatusCode == HttpStatusCode.BadGateway)
+			.HandleResult<HttpResponseMessage>(r =>
+				r.StatusCode == HttpStatusCode.BadGateway ||
+				r.StatusCode == HttpStatusCode.InternalServerError ||
+				r.StatusCode == HttpStatusCode.GatewayTimeout)
 			.WaitAndRetryForeverAsync(retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
 		m_apiCallPolicy = retryPolicy
 			.WrapAsync(rateLimitRetryPolicy)
