@@ -32,14 +32,36 @@ public sealed class CheckRunsJob : IJob
 		foreach (var character in m_db.Table<Character>())
 		{
 			var profile = await m_raiderIOClient.GetCharacterAsync(character.Name, character.Realm, character.Region).ConfigureAwait(false);
-			if (profile is null)
-				continue;
+			if (profile.IsFailure)
+			{
+				if (profile.Error == ErrorResult.CharacterNotFound)
+				{
+					character.ErroringSince ??= DateTime.UtcNow;
+					if (character.ErroringSince < DateTime.UtcNow - TimeSpan.FromHours(24))
+					{
+						await channel!.SendMessageAsync($"Unfollowing {character.Name} on {character.Realm}-{character.Region}! Could not access profile for over 24 hours.").ConfigureAwait(false);
+						m_db.Delete(character);
+					}
+					else
+					{
+						m_db.Update(character);
+					}
 
-			runIds.UnionWith(profile.Mythic_Plus_Recent_Runs
+					continue;
+				}
+				else
+				{
+					character.ErroringSince = null;
+				}
+
+				continue;
+			}
+
+			runIds.UnionWith(profile.Result!.Mythic_Plus_Recent_Runs
 				.Select(run => run.RunId)
 				.TakeWhile(runId => runId != character.MostRecentRunId)
 				.Where(runId => !m_cache.TryGetValue(runId, out var _)));
-			character.MostRecentRunId = profile.Mythic_Plus_Recent_Runs.FirstOrDefault()?.RunId;
+			character.MostRecentRunId = profile.Result.Mythic_Plus_Recent_Runs.FirstOrDefault()?.RunId;
 
 			charactersToUpdate.Add(character);
 		}
@@ -47,25 +69,26 @@ public sealed class CheckRunsJob : IJob
 		var embeds = new List<Embed>();
 		foreach (var runId in runIds)
 		{
-			var runInfo = (await m_raiderIOClient.GetMythicPlusRunAsync(runId).ConfigureAwait(false))?.KeystoneRun;
-			if (runInfo is null)
+			var runInfo = await m_raiderIOClient.GetMythicPlusRunAsync(runId).ConfigureAwait(false);
+			if (runInfo.IsFailure)
 				continue;
 
-			var percentage = (double)runInfo.Clear_Time_Ms / (double)runInfo.Keystone_Time_Ms;
+			var keystoneRun = runInfo.Result!.KeystoneRun;
+			var percentage = (double)keystoneRun.Clear_Time_Ms / (double)keystoneRun.Keystone_Time_Ms;
 			var percentageString = percentage < 1 ? $"{1 - percentage:P1} remaining" : $"{percentage - 1:P1} over";
 
-			var rosterString = string.Join(Environment.NewLine, runInfo.Roster
+			var rosterString = string.Join(Environment.NewLine, keystoneRun.Roster
 				.OrderBy(r => r.Role)
 				.Select(r => $"{GetRoleEmoji(r.Role)} [{r.Character.Name.Split('-')[0]}](https://raider.io{r.Character.Path}) - **{r.Role}** ({r.Character.Spec.Name} {r.Character.Class.Name}) - {r.Ranks.Score:0} Score"));
 
 			var embed = new EmbedBuilder()
 				.WithFooter(footer => footer.Text = "Data provided by Raider.IO")
-				.WithTitle($"+{runInfo.Mythic_Level} {runInfo.Dungeon.Name}")
+				.WithTitle($"+{keystoneRun.Mythic_Level} {keystoneRun.Dungeon.Name}")
 				.WithColor(Color.Gold)
-				.WithDescription($@"Cleared in {TimeSpan.FromMilliseconds(runInfo.Clear_Time_Ms):mm':'ss} of {TimeSpan.FromMilliseconds(runInfo.Keystone_Time_Ms):mm':'ss} ({percentageString}).{Environment.NewLine}{Environment.NewLine}{rosterString}")
+				.WithDescription($@"Cleared in {TimeSpan.FromMilliseconds(keystoneRun.Clear_Time_Ms):mm':'ss} of {TimeSpan.FromMilliseconds(keystoneRun.Keystone_Time_Ms):mm':'ss} ({percentageString}).{Environment.NewLine}{Environment.NewLine}{rosterString}")
 				.WithUrl($"https://raider.io/mythic-plus-runs/{runId}")
-				.WithImageUrl($"https://cdnassets.raider.io/images/dungeons/expansion{runInfo.Dungeon.Expansion_Id}/base/{runInfo.Dungeon.Slug}.jpg")
-				.WithTimestamp(DateTimeOffset.Parse(runInfo.Completed_At));
+				.WithImageUrl($"https://cdnassets.raider.io/images/dungeons/expansion{keystoneRun.Dungeon.Expansion_Id}/base/{keystoneRun.Dungeon.Slug}.jpg")
+				.WithTimestamp(DateTimeOffset.Parse(keystoneRun.Completed_At));
 
 			embeds.Add(embed.Build());
 		}

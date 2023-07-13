@@ -11,4 +11,5 @@ public sealed class Character
 	[Unique(Name = "UK_Character_Name_Realm_Region"), Collation("NOCASE")]
 	public string Region { get; set; }
 	public string? MostRecentRunId { get; set; }
+	public DateTime? ErroringSince { get; set; }
 }

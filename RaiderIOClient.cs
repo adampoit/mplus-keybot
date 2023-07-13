@@ -25,98 +25,141 @@ public sealed class RaiderIOClient
 			.WrapAsync(rateLimitPolicy);
 	}
 
-	public async Task<CharacterDto?> GetCharacterAsync(string name, string realm, string region) =>
-		await GetJsonAsync<CharacterDto>(m_client, $"https://raider.io/api/v1/characters/profile?region={region}&realm={realm}&name={name}&fields=mythic_plus_recent_runs", m_apiCallPolicy).ConfigureAwait(false);
+	public async Task<ServiceResult<CharacterDto>> GetCharacterAsync(string name, string realm, string region) => await GetJsonAsync<CharacterDto>(
+		$"https://raider.io/api/v1/characters/profile?region={region}&realm={realm}&name={name}&fields=mythic_plus_recent_runs",
+		(HttpStatusCode code, string content) =>
+		{
+			if (code == HttpStatusCode.BadRequest && content.Contains("Could not find requested character"))
+				return ErrorResult.CharacterNotFound;
 
-	public async Task<MythicPlusRunDto?> GetMythicPlusRunAsync(string runId) => await GetJsonAsync<MythicPlusRunDto>(m_client, $"https://raider.io/api/mythic-plus/runs/{runId}", m_apiCallPolicy).ConfigureAwait(false);
+			return null;
+		}).ConfigureAwait(false);
 
-	public async Task<Affixes?> GetAffixes() => await GetJsonAsync<Affixes>(m_client, "https://raider.io/api/v1/mythic-plus/affixes?region=us&locale=en", m_apiCallPolicy).ConfigureAwait(false);
+	public async Task<ServiceResult<MythicPlusRunDto>> GetMythicPlusRunAsync(string runId) => await GetJsonAsync<MythicPlusRunDto>($"https://raider.io/api/mythic-plus/runs/{runId}").ConfigureAwait(false);
 
-	private static async Task<T?> GetJsonAsync<T>(HttpClient client, string url, AsyncPolicyWrap<HttpResponseMessage> apiCallPolicy)
+	public async Task<ServiceResult<Affixes>> GetAffixes() => await GetJsonAsync<Affixes>("https://raider.io/api/v1/mythic-plus/affixes?region=us&locale=en").ConfigureAwait(false);
+
+	private async Task<ServiceResult<T>> GetJsonAsync<T>(string url, Func<HttpStatusCode, string, ErrorResult?>? handleNonSuccess = null)
 	{
-		var result = await apiCallPolicy.ExecuteAsync(async () => await client.GetAsync(url).ConfigureAwait(false)).ConfigureAwait(false);
+		var result = await m_apiCallPolicy.ExecuteAsync(async () => await m_client.GetAsync(url).ConfigureAwait(false)).ConfigureAwait(false);
 		if (!result.IsSuccessStatusCode)
 		{
-			Console.WriteLine($"ERROR - {await result.Content.ReadAsStringAsync().ConfigureAwait(false)}");
-			return default(T);
+			var content = await result.Content.ReadAsStringAsync().ConfigureAwait(false);
+			if (handleNonSuccess is not null)
+			{
+				var errorResult = handleNonSuccess(result.StatusCode, content);
+				if (errorResult is not null)
+					return ServiceResult<T>.CreateError(errorResult.Value);
+			}
+
+			Console.WriteLine($"ERROR - {content}");
+			return ServiceResult<T>.CreateError(ErrorResult.Unknown);
 		}
 
-		return JsonConvert.DeserializeObject<T>(await result.Content.ReadAsStringAsync().ConfigureAwait(false));
+		return ServiceResult<T>.CreateSuccess(JsonConvert.DeserializeObject<T>(await result.Content.ReadAsStringAsync().ConfigureAwait(false))!);
 	}
 
 	private readonly HttpClient m_client;
 	private readonly AsyncPolicyWrap<HttpResponseMessage> m_apiCallPolicy;
 }
 
+public sealed class ServiceResult<T>
+{
+	public T? Result { get; }
+
+	public ErrorResult? Error { get; }
+
+	public bool IsFailure => Error is not null;
+
+	public static ServiceResult<T> CreateSuccess(T result) => new ServiceResult<T>(result, null);
+
+	public static ServiceResult<T> CreateError(ErrorResult error) => new ServiceResult<T>(default(T), error);
+
+	private ServiceResult(T? result, ErrorResult? error)
+	{
+		if (result is null && error is null)
+			throw new ArgumentException($"One of {nameof(result)} and {nameof(error)} must be set.");
+
+		Result = result;
+		Error = error;
+	}
+}
+
+public enum ErrorResult
+{
+	Unknown,
+	CharacterNotFound,
+}
+
 public sealed class CharacterDto
 {
-	public string Name { get; set; }
-	public long Id { get; set; }
-	public IReadOnlyList<MythicPlusRecentRunDto> Mythic_Plus_Recent_Runs { get; set; }
+	public required string Name { get; set; }
+	public required long Id { get; set; }
+	public required IReadOnlyList<MythicPlusRecentRunDto> Mythic_Plus_Recent_Runs { get; set; }
 }
 
 public sealed class MythicPlusRecentRunDto
 {
-	public string Dungeon { get; set; }
-	public int Mythic_Level { get; set; }
-	public int Clear_Time_Ms { get; set; }
-	public int Par_Time_Ms { get; set; }
-	public string Url { get; set; }
-	public string Completed_At { get; set; }
+	public required string Dungeon { get; set; }
+	public required int Mythic_Level { get; set; }
+	public required int Clear_Time_Ms { get; set; }
+	public required int Par_Time_Ms { get; set; }
+	public required string Url { get; set; }
+	public required string Completed_At { get; set; }
 
 	public string RunId => string.Join("", new Uri(Url).Segments.TakeLast(2));
 }
 
 public sealed class MythicPlusRunDto
 {
-	public MythicPlusKeystoneRunDto KeystoneRun { get; set; }
+	public required MythicPlusKeystoneRunDto KeystoneRun { get; set; }
 }
 
 public sealed class MythicPlusKeystoneRunDto
 {
-	public IReadOnlyList<RosterMemberDto> Roster { get; set; }
-	public DungeonDto Dungeon { get; set; }
-	public int Mythic_Level { get; set; }
-	public int Clear_Time_Ms { get; set; }
-	public int Keystone_Time_Ms { get; set; }
-	public string Completed_At { get; set; }
+	public required IReadOnlyList<RosterMemberDto> Roster { get; set; }
+	public required DungeonDto Dungeon { get; set; }
+	public required int Mythic_Level { get; set; }
+	public required int Clear_Time_Ms { get; set; }
+	public required int Keystone_Time_Ms { get; set; }
+	public required string Completed_At { get; set; }
 }
 
 public sealed class RosterMemberDto
 {
-	public RosterCharacterDto Character { get; set; }
-	public MythicPlusScoreDto Ranks { get; set; }
-	public Role Role { get; set; }
+	public required RosterCharacterDto Character { get; set; }
+	public required MythicPlusScoreDto Ranks { get; set; }
+	public required Role Role { get; set; }
 }
 
 public sealed class ClassDto
 {
-	public string Name { get; set; }
+	public required string Name { get; set; }
 }
 
 public sealed class SpecDto
 {
-	public string Name { get; set; }
+	public required string Name { get; set; }
 }
 
 public sealed class DungeonDto
 {
-	public string Name { get; set; }
-	public string Slug { get; set; }
-	public int Expansion_Id { get; set; }
+	public required string Name { get; set; }
+	public required string Slug { get; set; }
+	public required int Expansion_Id { get; set; }
 }
 
 public sealed class RosterCharacterDto
 {
-	public string Name { get; set; }
-	public ClassDto Class { get; set; }
-	public SpecDto Spec { get; set; }
-	public string Path { get; set; }
+	public required string Name { get; set; }
+	public required ClassDto Class { get; set; }
+	public required SpecDto Spec { get; set; }
+	public required string Path { get; set; }
 }
 
 public sealed class MythicPlusScoreDto
 {
-	public double Score { get; set; }
+	public required double Score { get; set; }
 }
 
 public enum Role
@@ -128,5 +171,5 @@ public enum Role
 
 public sealed class Affixes
 {
-	public string Title { get; set; }
+	public required string Title { get; set; }
 }

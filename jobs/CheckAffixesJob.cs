@@ -27,12 +27,14 @@ public sealed class CheckAffixesJob : IJob
 
 		var affixInfo = m_db.Table<AffixInfo>().FirstOrDefault();
 		var affixes = await m_raiderIOClient.GetAffixes().ConfigureAwait(false);
+		if (affixes.IsFailure)
+			return;
 
-		if (affixes?.Title != affixInfo?.Affixes)
+		if (affixes.Result!.Title != affixInfo?.Affixes)
 		{
 			var embed = new EmbedBuilder()
 				.WithFooter(footer => footer.Text = "Data provided by Raider.IO")
-				.WithTitle(affixes!.Title)
+				.WithTitle(affixes.Result.Title)
 				.WithColor(Color.Gold)
 				.WithDescription("Weekly Mythic Plus affixes updated.")
 				.WithCurrentTimestamp();
@@ -41,12 +43,12 @@ public sealed class CheckAffixesJob : IJob
 
 			if (affixInfo is null)
 			{
-				var newInfo = new AffixInfo { Affixes = affixes.Title };
+				var newInfo = new AffixInfo { Affixes = affixes.Result.Title };
 				m_db.Insert(newInfo);
 			}
 			else
 			{
-				affixInfo.Affixes = affixes.Title;
+				affixInfo.Affixes = affixes.Result.Title;
 				m_db.Update(affixInfo);
 			}
 		}

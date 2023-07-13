@@ -116,7 +116,7 @@ discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
 			var region = (command.Data.Options.First(x => x.Name == "region").Value as string)!;
 
 			var profile = await raiderIOClient.GetCharacterAsync(characterName, realm, region).ConfigureAwait(false);
-			if (profile is null)
+			if (profile.IsFailure)
 			{
 				var embed = new EmbedBuilder()
 					.WithColor(Color.Red)
@@ -126,7 +126,7 @@ discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
 			}
 			else
 			{
-				var runId = profile.Mythic_Plus_Recent_Runs.FirstOrDefault()?.RunId;
+				var runId = profile.Result!.Mythic_Plus_Recent_Runs.FirstOrDefault()?.RunId;
 				var character = new Character
 				{
 					Name = characterName!,
