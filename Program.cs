@@ -148,7 +148,7 @@ discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
 	}
 };
 
-while (!ready) { }
+SpinWait.SpinUntil(() => ready);
 
 host.Run();
 
