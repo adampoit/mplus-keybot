@@ -27,8 +27,7 @@ public sealed class CheckRunsJob : IJob
 		var guild = m_discordClient.Guilds.Single();
 		var channel = guild.Channels.Single(c => c.Name == m_discordChannel) as IMessageChannel;
 
-		var charactersToUpdate = new List<Character>();
-		var runIds = new HashSet<string>();
+		var runs = new HashSet<MythicPlusRun>();
 		foreach (var character in m_db.Table<Character>())
 		{
 			var profile = await m_raiderIOClient.GetCharacterAsync(character.Name, character.Realm, character.Region).ConfigureAwait(false);
@@ -57,19 +56,15 @@ public sealed class CheckRunsJob : IJob
 				continue;
 			}
 
-			runIds.UnionWith(profile.Result!.Mythic_Plus_Recent_Runs
-				.Select(run => run.RunId)
-				.TakeWhile(runId => runId != character.MostRecentRunId)
-				.Where(runId => !m_cache.TryGetValue(runId, out var _)));
-			character.MostRecentRunId = profile.Result.Mythic_Plus_Recent_Runs.FirstOrDefault()?.RunId;
-
-			charactersToUpdate.Add(character);
+			runs.UnionWith(profile.Result!.Mythic_Plus_Recent_Runs
+				.Select(run => new MythicPlusRun { Id = run.RunId, Date = DateTimeOffset.Parse(run.Completed_At) })
+				.Where(run => !m_cache.TryGetValue(run.Id, out var _) &&
+					!m_db.Table<MythicPlusRun>().Any(x => x.Id == run.Id)));
 		}
 
-		var embeds = new List<Embed>();
-		foreach (var runId in runIds)
+		foreach (var run in runs.OrderBy(x => x.Date))
 		{
-			var runInfo = await m_raiderIOClient.GetMythicPlusRunAsync(runId).ConfigureAwait(false);
+			var runInfo = await m_raiderIOClient.GetMythicPlusRunAsync(run.Id).ConfigureAwait(false);
 			if (runInfo.IsFailure)
 				continue;
 
@@ -86,20 +81,16 @@ public sealed class CheckRunsJob : IJob
 				.WithTitle($"+{keystoneRun.Mythic_Level} {keystoneRun.Dungeon.Name}")
 				.WithColor(Color.Gold)
 				.WithDescription($@"Cleared in {TimeSpan.FromMilliseconds(keystoneRun.Clear_Time_Ms):mm':'ss} of {TimeSpan.FromMilliseconds(keystoneRun.Keystone_Time_Ms):mm':'ss} ({percentageString}).{Environment.NewLine}{Environment.NewLine}{rosterString}")
-				.WithUrl($"https://raider.io/mythic-plus-runs/{runId}")
+				.WithUrl($"https://raider.io/mythic-plus-runs/{run.Id}")
 				.WithImageUrl($"https://cdnassets.raider.io/images/dungeons/expansion{keystoneRun.Dungeon.Expansion_Id}/base/{keystoneRun.Dungeon.Slug}.jpg")
-				.WithTimestamp(DateTimeOffset.Parse(keystoneRun.Completed_At));
+				.WithTimestamp(run.Date);
 
-			embeds.Add(embed.Build());
+			await channel!.SendMessageAsync(embed: embed.Build()).ConfigureAwait(false);
+
+			m_db.Insert(run, "OR IGNORE");
+			m_cache.Set<object?>(run.Id, null, TimeSpan.FromMinutes(60));
 		}
 
-		foreach (var embed in embeds.OrderBy(x => x.Timestamp))
-			await channel!.SendMessageAsync(embed: embed).ConfigureAwait(false);
-
-		foreach (var runId in runIds)
-			m_cache.Set<object?>(runId, null, TimeSpan.FromMinutes(60));
-
-		m_db.UpdateAll(charactersToUpdate);
 		m_logger.LogInformation($"Finished {nameof(CheckRunsJob)} job after {stopwatch.Elapsed}.");
 	}
 

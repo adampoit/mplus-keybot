@@ -1,7 +1,7 @@
 scp artifacts/* root@example.com:/srv/mplus-keybot-stage
 scp mplus-keybot.service root@example.com:/etc/systemd/system
 
-ssh root@example.com << EOF
+ssh -T root@example.com << EOF
 	mkdir -p /srv/mplus-keybot
 
 	sudo systemctl stop mplus-keybot.service

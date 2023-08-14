@@ -26,6 +26,7 @@ var host = Host.CreateDefaultBuilder(args)
 
 			db.CreateTable<Character>();
 			db.CreateTable<AffixInfo>();
+			db.CreateTable<MythicPlusRun>();
 
 			return db;
 		});
@@ -126,13 +127,12 @@ discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
 			}
 			else
 			{
-				var runId = profile.Result!.Mythic_Plus_Recent_Runs.FirstOrDefault()?.RunId;
+				db.InsertAll(profile.Result!.Mythic_Plus_Recent_Runs.Select(x => new MythicPlusRun { Id = x.RunId, Date = DateTimeOffset.Parse(x.Completed_At) }), "OR IGNORE");
 				var character = new Character
 				{
 					Name = characterName!,
 					Realm = realm!,
 					Region = region!,
-					MostRecentRunId = runId,
 				};
 				var rowsInserted = db.Insert(character, "OR IGNORE");
 
