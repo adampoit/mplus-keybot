@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Discord;
 using Discord.WebSocket;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Quartz;
@@ -9,14 +8,13 @@ using SQLite;
 
 public sealed class CheckRunsJob : IJob
 {
-	public CheckRunsJob(ILogger<CheckRunsJob> logger, DiscordSocketClient discordClient, RaiderIOClient raiderIOClient, SQLiteConnection db, IConfiguration config, IMemoryCache cache)
+	public CheckRunsJob(ILogger<CheckRunsJob> logger, DiscordSocketClient discordClient, RaiderIOClient raiderIOClient, SQLiteConnection db, IConfiguration config)
 	{
 		m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
 		m_raiderIOClient = raiderIOClient ?? throw new ArgumentNullException(nameof(raiderIOClient));
 		m_db = db ?? throw new ArgumentNullException(nameof(db));
 		m_discordChannel = config["Discord:Channel"]!;
-		m_cache = cache ?? throw new ArgumentNullException(nameof(cache));
 	}
 
 	public async Task Execute(IJobExecutionContext context)
@@ -58,8 +56,7 @@ public sealed class CheckRunsJob : IJob
 
 			runs.UnionWith(profile.Result!.Mythic_Plus_Recent_Runs
 				.Select(run => new MythicPlusRun { Id = run.RunId, Date = DateTimeOffset.Parse(run.Completed_At) })
-				.Where(run => !m_cache.TryGetValue(run.Id, out var _) &&
-					!m_db.Table<MythicPlusRun>().Any(x => x.Id == run.Id)));
+				.Where(run => !m_db.Table<MythicPlusRun>().Any(x => x.Id == run.Id)));
 		}
 
 		foreach (var run in runs.OrderBy(x => x.Date))
@@ -88,7 +85,6 @@ public sealed class CheckRunsJob : IJob
 			await channel!.SendMessageAsync(embed: embed.Build()).ConfigureAwait(false);
 
 			m_db.Insert(run, "OR IGNORE");
-			m_cache.Set<object?>(run.Id, null, TimeSpan.FromMinutes(60));
 		}
 
 		m_logger.LogInformation($"Finished {nameof(CheckRunsJob)} job after {stopwatch.Elapsed}.");
@@ -107,5 +103,4 @@ public sealed class CheckRunsJob : IJob
 	private readonly RaiderIOClient m_raiderIOClient;
 	private readonly SQLiteConnection m_db;
 	private readonly string m_discordChannel;
-	private readonly IMemoryCache m_cache;
 }
