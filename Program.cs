@@ -32,8 +32,6 @@ var host = Host.CreateDefaultBuilder(args)
 
 		services.AddQuartz(q =>
 		{
-			q.UseMicrosoftDependencyInjectionJobFactory();
-
 			q.UseSimpleTypeLoader();
 			q.UseInMemoryStore();
 			q.UseDefaultThreadPool(tp =>

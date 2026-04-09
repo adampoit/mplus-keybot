@@ -3,6 +3,7 @@ Description=M+ Keybot
 
 [Service]
 Type=notify
+EnvironmentFile=-/etc/mplus-keybot.env
 ExecStart=/srv/mplus-keybot/mplus-keybot
 WorkingDirectory=/srv/mplus-keybot
 
