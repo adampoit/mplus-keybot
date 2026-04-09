@@ -47,6 +47,54 @@ dotnet run
 
 The bot creates `mplus-data.db` in the working directory.
 
+## Nix
+
+The repository now includes a flake that can build the bot, open a development shell, and expose a reusable NixOS module.
+
+```bash
+nix develop
+nix build
+nix run
+```
+
+If NuGet dependencies change, regenerate `nix/nuget-deps.json` with:
+
+```bash
+nix run .#fetch-deps -- ./nix/nuget-deps.json
+```
+
+### NixOS module
+
+The flake exposes `nixosModules.default`, so another flake can consume it like this:
+
+```nix
+{
+  inputs.mplus-keybot.url = "github:adampoit/mplus-keybot";
+
+  outputs = { nixpkgs, mplus-keybot, ... }: {
+    nixosConfigurations.mplus-bot = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        mplus-keybot.nixosModules.default
+        ({ ... }: {
+          services.mplus-keybot = {
+            enable = true;
+            environmentFile = "/run/secrets/mplus-keybot.env";
+          };
+        })
+      ];
+    };
+  };
+}
+```
+
+The environment file should contain the Discord settings:
+
+```text
+Discord__Token=discord-bot-token
+Discord__Channel=mythic-plus
+```
+
 ## Publishing
 
 The existing publish script builds a self-contained Linux binary:
@@ -57,9 +105,9 @@ The existing publish script builds a self-contained Linux binary:
 
 This writes deployment artifacts to `artifacts/`.
 
-## Systemd deployment
+## Legacy deploy examples
 
-The repository includes example deployment assets under `deploy/`:
+The repository still includes example deployment assets under `deploy/`, but they are transitional now that the flake and NixOS module exist:
 
 - `deploy/systemd/mplus-keybot.service` for running the bot under `systemd`
 - `deploy/deploy.sh` as a generic SCP-based deployment script driven by environment variables
@@ -89,4 +137,4 @@ SYSTEMD_PATH=/etc/systemd/system
 
 - `appsettings.json` is intentionally not committed
 - The local SQLite database is intentionally ignored
-- Files in `deploy/` are examples and should be adapted to your target host
+- Files in `deploy/` are transitional examples and should be considered deprecated in favor of the Nix path
