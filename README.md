@@ -1,71 +1,104 @@
 # mplus-keybot
 
-`mplus-keybot` is a .NET Discord bot that watches Raider.IO for followed characters, posts newly completed Mythic+ runs, and announces weekly affix changes.
+A Discord bot that tracks Mythic+ dungeon runs for your World of Warcraft guild or friend group. Never miss a key completion again—get automatic notifications when followed characters finish dungeons, plus weekly affix rotation announcements.
 
-## What it does
+<p align="center">
+  <img src="screenshot.png" alt="Discord notification showing a completed +9 Magisters' Terrace run with roster details and dungeon image" width="500">
+</p>
 
-- Registers a `/follow` slash command in a Discord server
-- Polls Raider.IO every 5 minutes for new Mythic+ runs
-- Polls Raider.IO every hour for weekly affix changes
-- Stores followed characters and announced runs in a local SQLite database
+## What It Does
+
+**For guilds and friend groups:**
+
+- Use `/follow <character> <realm> <region>` to track any character's Mythic+ runs
+- Get automatic Discord notifications when followed characters complete dungeons
+- See weekly affix rotations announced when they change
+
+## Features
+
+- **Slash command registration** (`/follow`) for easy character tracking
+- **Automatic polling** of Raider.IO (5 min for runs, 1 hour for affixes)
+- **SQLite storage** for followed characters and run history—no external database needed
+- **Lightweight**—runs anywhere .NET runs
+
+## Quick Start
+
+1. **Create a Discord bot** at [discord.com/developers](https://discord.com/developers) and invite it to your server
+2. **Copy the example config** and add your bot token:
+   ```bash
+   cp appsettings.example.json appsettings.json
+   # Edit appsettings.json with your Discord token and channel name
+   ```
+3. **Run it**:
+   ```bash
+   dotnet run
+   ```
+
+The bot will create `mplus-data.db` in the working directory.
 
 ## Requirements
 
-- .NET 10 SDK
-- A Discord bot token
-- A Discord channel name for announcements
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- Discord bot token (create one at [Discord Developer Portal](https://discord.com/developers/applications))
+- Discord channel where the bot can post messages
 
 ## Configuration
 
-The app reads configuration from standard .NET configuration sources, including `appsettings.json` and environment variables.
+The bot uses standard .NET configuration. You can use `appsettings.json`, environment variables, or command-line arguments.
 
-Example configuration is provided in `appsettings.example.json`:
+### Option 1: appsettings.json
+
+Copy the example and edit:
+
+```bash
+cp appsettings.example.json appsettings.json
+```
 
 ```json
 {
   "Discord": {
-    "Token": "discord-bot-token",
+    "Token": "your-bot-token-here",
     "Channel": "mythic-plus"
   }
 }
 ```
 
-Equivalent environment variables:
+> ⚠️ `appsettings.json` is git-ignored to prevent accidentally committing secrets.
 
-```text
-Discord__Token=discord-bot-token
-Discord__Channel=mythic-plus
-```
-
-`appsettings.json` is ignored by git so local secrets do not end up in the repository.
-
-## Running locally
+### Option 2: Environment Variables
 
 ```bash
+export Discord__Token=your-bot-token-here
+export Discord__Channel=mythic-plus
 dotnet run
 ```
 
-The bot creates `mplus-data.db` in the working directory.
-
-## Nix
-
-The repository now includes a flake that can build the bot, open a development shell, and expose a reusable NixOS module.
+### Option 3: Command Line
 
 ```bash
+dotnet run --Discord:Token=your-token --Discord:Channel=mythic-plus
+```
+
+## Deployment
+
+### Nix/NixOS (Recommended)
+
+The repository includes a Nix flake for reproducible builds and deployment:
+
+```bash
+# Enter development shell
 nix develop
+
+# Build the bot
 nix build
+
+# Run directly
 nix run
 ```
 
-If NuGet dependencies change, regenerate `nix/nuget-deps.json` with:
+#### NixOS Module
 
-```bash
-nix run .#fetch-deps -- ./nix/nuget-deps.json
-```
-
-### NixOS module
-
-The flake exposes `nixosModules.default`, so another flake can consume it like this:
+For production deployments on NixOS, use the provided module:
 
 ```nix
 {
@@ -76,34 +109,45 @@ The flake exposes `nixosModules.default`, so another flake can consume it like t
       system = "x86_64-linux";
       modules = [
         mplus-keybot.nixosModules.default
-        ({ ... }: {
+        {
           services.mplus-keybot = {
             enable = true;
             environmentFile = "/run/secrets/mplus-keybot.env";
           };
-        })
+        }
       ];
     };
   };
 }
 ```
 
-The environment file should contain the Discord settings:
+Create `/run/secrets/mplus-keybot.env` with:
 
 ```text
-Discord__Token=discord-bot-token
+Discord__Token=your-bot-token-here
 Discord__Channel=mythic-plus
 ```
 
-## Publishing
-
-If you need a standalone Linux binary outside Nix, publish it directly with `dotnet`:
+After updating NuGet dependencies, regenerate the lock file:
 
 ```bash
-dotnet publish -c Release -r linux-x64 --self-contained=true -p:PublishSingleFile=true -p:GenerateRuntimeConfigurationFiles=true -o artifacts
+nix run .#fetch-deps -- ./nix/nuget-deps.json
 ```
 
-This writes deployment artifacts to `artifacts/`.
+### Standalone Binary (Linux)
+
+You can also build a self-contained binary:
+
+```bash
+dotnet publish -c Release -r linux-x64 \
+  --self-contained=true \
+  -p:PublishSingleFile=true \
+  -p:GenerateRuntimeConfigurationFiles=true \
+  -o ./artifacts
+
+# Run on target server
+./artifacts/mplus-keybot
+```
 
 ## License
 
