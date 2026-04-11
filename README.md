@@ -97,44 +97,14 @@ Discord__Channel=mythic-plus
 
 ## Publishing
 
-The existing publish script builds a self-contained Linux binary:
+If you need a standalone Linux binary outside Nix, publish it directly with `dotnet`:
 
-```powershell
-./deploy/build.ps1
+```bash
+dotnet publish -c Release -r linux-x64 --self-contained=true -p:PublishSingleFile=true -p:GenerateRuntimeConfigurationFiles=true -o artifacts
 ```
 
 This writes deployment artifacts to `artifacts/`.
 
-## Legacy deploy examples
+## License
 
-The repository still includes example deployment assets under `deploy/`, but they are transitional now that the flake and NixOS module exist:
-
-- `deploy/systemd/mplus-keybot.service` for running the bot under `systemd`
-- `deploy/deploy.sh` as a generic SCP-based deployment script driven by environment variables
-
-The example service reads environment variables from `/etc/mplus-keybot.env`, so a minimal production config can look like:
-
-```text
-Discord__Token=discord-bot-token
-Discord__Channel=mythic-plus
-```
-
-Example:
-
-```bash
-DEPLOY_HOST=example.com ./deploy/deploy.sh
-```
-
-Optional environment variables:
-
-```text
-DEPLOY_USER=root
-DEPLOY_PATH=/srv/mplus-keybot
-SYSTEMD_PATH=/etc/systemd/system
-```
-
-## Open-source notes
-
-- `appsettings.json` is intentionally not committed
-- The local SQLite database is intentionally ignored
-- Files in `deploy/` are transitional examples and should be considered deprecated in favor of the Nix path
+MIT
