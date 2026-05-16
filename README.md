@@ -1,6 +1,6 @@
 # mplus-keybot
 
-A Discord bot that tracks Mythic+ dungeon runs for your World of Warcraft guild or friend group. Never miss a key completion again—get automatic notifications when followed characters finish dungeons, plus weekly affix rotation announcements.
+A Discord bot that tracks Mythic+ dungeon runs for your World of Warcraft guild or friend group. Never miss a key completion again—get automatic notifications when followed characters finish dungeons.
 
 <p align="center">
   <img src="screenshot.png" alt="Discord notification showing a completed +9 Magisters' Terrace run with roster details and dungeon image" width="500">
@@ -12,12 +12,11 @@ A Discord bot that tracks Mythic+ dungeon runs for your World of Warcraft guild 
 
 - Use `/follow <character> <realm> <region>` to track any character's Mythic+ runs
 - Get automatic Discord notifications when followed characters complete dungeons
-- See weekly affix rotations announced when they change
 
 ## Features
 
 - **Slash command registration** (`/follow`) for easy character tracking
-- **Automatic polling** of Raider.IO (5 min for runs, 1 hour for affixes)
+- **Automatic polling** of Raider.IO every 5 minutes for runs
 - **SQLite storage** for followed characters and run history—no external database needed
 - **Lightweight**—runs anywhere .NET runs
 

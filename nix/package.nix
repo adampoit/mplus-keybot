@@ -11,6 +11,7 @@ buildDotnetModule {
   src = lib.fileset.toSource {
     root = ../.;
     fileset = lib.fileset.unions [
+      ../AchievementRules.cs
       ../Program.cs
       ../RaiderIOClient.cs
       ../mplus-keybot.csproj

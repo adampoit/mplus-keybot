@@ -24,7 +24,9 @@ var host = Host.CreateDefaultBuilder(args)
 			var db = new SQLiteConnection("mplus-data.db");
 
 			db.CreateTable<Character>();
-			db.CreateTable<AffixInfo>();
+			db.CreateTable<CharacterAchievementState>();
+			db.CreateTable<CharacterRankingAchievementState>();
+			db.CreateTable<DatabaseMigration>();
 			db.CreateTable<MythicPlusRun>();
 
 			return db;
@@ -47,13 +49,6 @@ var host = Host.CreateDefaultBuilder(args)
 				.WithDescription("Checks Raider.IO for recent mythic plus runs on followed characters.")
 			);
 
-			q.ScheduleJob<CheckAffixesJob>(trigger => trigger
-				.WithIdentity("Every Hour")
-				.WithSimpleSchedule(x => x
-					.WithIntervalInMinutes(60)
-					.RepeatForever())
-				.WithDescription("Checks Raider.IO for updated weekly affixes.")
-			);
 		});
 		services.AddQuartzHostedService(opt =>
 		{
@@ -67,6 +62,8 @@ var logger = host.Services.GetRequiredService<ILogger<DiscordSocketClient>>();
 var config = host.Services.GetRequiredService<IConfiguration>();
 var raiderIOClient = host.Services.GetRequiredService<RaiderIOClient>();
 var db = host.Services.GetRequiredService<SQLiteConnection>();
+
+await DatabaseMigrations.RunAsync(db, raiderIOClient).ConfigureAwait(false);
 
 discordClient.Log += (LogMessage msg) =>
 {
@@ -133,9 +130,14 @@ discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
 				var rowsInserted = db.Insert(character, "OR IGNORE");
 
 				if (rowsInserted == 1)
+				{
+					DatabaseMigrations.SeedAchievementState(db, character, profile.Result!);
 					await command.RespondAsync($"Now following {characterName} on {realm}-{region}!").ConfigureAwait(false);
+				}
 				else
+				{
 					await command.RespondAsync($"Already following {characterName} on {realm}-{region}!").ConfigureAwait(false);
+				}
 			}
 
 			break;
@@ -147,6 +149,7 @@ discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
 SpinWait.SpinUntil(() => ready);
 
 host.Run();
+
 
 sealed class ConsoleLogProvider : ILogProvider
 {

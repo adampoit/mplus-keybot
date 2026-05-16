@@ -26,7 +26,7 @@ public sealed class RaiderIOClient
 	}
 
 	public async Task<ServiceResult<CharacterDto>> GetCharacterAsync(string name, string realm, string region) => await GetJsonAsync<CharacterDto>(
-		$"https://raider.io/api/v1/characters/profile?region={region}&realm={realm}&name={name}&fields=mythic_plus_recent_runs",
+		$"https://raider.io/api/v1/characters/profile?region={region}&realm={realm}&name={name}&fields=mythic_plus_recent_runs,mythic_plus_scores_by_season:current,mythic_plus_ranks",
 		(HttpStatusCode code, string content) =>
 		{
 			if (code == HttpStatusCode.BadRequest && content.Contains("Could not find requested character"))
@@ -37,7 +37,6 @@ public sealed class RaiderIOClient
 
 	public async Task<ServiceResult<MythicPlusRunDto>> GetMythicPlusRunAsync(string runId) => await GetJsonAsync<MythicPlusRunDto>($"https://raider.io/api/mythic-plus/runs/{runId}").ConfigureAwait(false);
 
-	public async Task<ServiceResult<Affixes>> GetAffixes() => await GetJsonAsync<Affixes>("https://raider.io/api/v1/mythic-plus/affixes?region=us&locale=en").ConfigureAwait(false);
 
 	private async Task<ServiceResult<T>> GetJsonAsync<T>(string url, Func<HttpStatusCode, string, ErrorResult?>? handleNonSuccess = null)
 	{
@@ -95,7 +94,17 @@ public sealed class CharacterDto
 {
 	public required string Name { get; set; }
 	public required long Id { get; set; }
+	public string? Region { get; set; }
+	public string? Realm { get; set; }
+	public string? Class { get; set; }
+	public string? Active_Spec_Name { get; set; }
+	public string? Active_Spec_Role { get; set; }
 	public required IReadOnlyList<MythicPlusRecentRunDto> Mythic_Plus_Recent_Runs { get; set; }
+	public IReadOnlyList<MythicPlusSeasonScoreDto> Mythic_Plus_Scores_By_Season { get; set; } = [];
+	public IReadOnlyDictionary<string, MythicPlusRankDto>? Mythic_Plus_Ranks { get; set; }
+
+	public string? CurrentMythicPlusSeason => Mythic_Plus_Scores_By_Season.FirstOrDefault()?.Season;
+	public double CurrentMythicPlusScore => Mythic_Plus_Scores_By_Season.FirstOrDefault()?.Scores.All ?? 0;
 }
 
 public sealed class MythicPlusRecentRunDto
@@ -162,14 +171,34 @@ public sealed class MythicPlusScoreDto
 	public required double Score { get; set; }
 }
 
+public sealed class MythicPlusSeasonScoreDto
+{
+	public required string Season { get; set; }
+	public required MythicPlusSeasonScoresDto Scores { get; set; }
+}
+
+public sealed class MythicPlusSeasonScoresDto
+{
+	public required double All { get; set; }
+}
+
+public sealed class MythicPlusRankDto
+{
+	public int World { get; set; }
+	public int Region { get; set; }
+	public int Realm { get; set; }
+
+	public IEnumerable<(string Lane, int Rank)> GetLaneRanks()
+	{
+		yield return ("realm", Realm);
+		yield return ("region", Region);
+		yield return ("world", World);
+	}
+}
+
 public enum Role
 {
 	Tank,
 	Healer,
 	Dps,
-}
-
-public sealed class Affixes
-{
-	public required string Title { get; set; }
 }
