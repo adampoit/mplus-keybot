@@ -10,17 +10,10 @@ buildDotnetModule {
 
   src = lib.fileset.toSource {
     root = ../.;
-    fileset = lib.fileset.unions [
-      ../AchievementRules.cs
-      ../Program.cs
-      ../RaiderIOClient.cs
-      ../mplus-keybot.csproj
-      ../database
-      ../jobs
-    ];
+    fileset = ../src/mplus-keybot;
   };
 
-  projectFile = "mplus-keybot.csproj";
+  projectFile = "src/mplus-keybot/mplus-keybot.csproj";
   nugetDeps = ./nuget-deps.json;
   executables = ["mplus-keybot"];
 

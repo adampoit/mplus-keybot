@@ -96,8 +96,9 @@ public sealed class CheckRunsJob : IJob
 
 			foreach (var achievement in runAchievements.OfType<PersonalBestRunAchievement>())
 			{
-				achievement.State.HighestKeyLevelSeen = keystoneRun.Mythic_Level;
-				achievement.State.HighestKeyLevelAnnounced = keystoneRun.Mythic_Level;
+				achievement.State.DungeonName = keystoneRun.Dungeon.Name;
+				achievement.State.HighestTimedKeyLevelSeen = keystoneRun.Mythic_Level;
+				achievement.State.HighestTimedKeyLevelAnnounced = keystoneRun.Mythic_Level;
 				m_db.Update(achievement.State);
 			}
 
@@ -155,29 +156,12 @@ public sealed class CheckRunsJob : IJob
 	private List<PersonalBestRunAchievement> GetRunAchievements(MythicPlusKeystoneRunDto run, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
 	{
 		var achievements = new List<PersonalBestRunAchievement>();
-		if (run.Mythic_Level < AchievementRules.MinimumPersonalBestAnnouncementLevel)
+		if (run.Mythic_Level < AchievementRules.MinimumPersonalBestAnnouncementLevel || run.Clear_Time_Ms > run.Keystone_Time_Ms)
 			return achievements;
 
-		foreach (var character in m_db.Table<Character>())
-		{
-			if (!characterProfiles.TryGetValue(character.Id, out var profile))
-				continue;
-
-			var season = profile.CurrentMythicPlusSeason;
-			if (season is null)
-				continue;
-
-			if (!run.Roster.Any(rosterMember => IsSameCharacter(rosterMember.Character, character)))
-				continue;
-
-			var state = GetOrCreateAchievementState(character, season);
-			if (run.Mythic_Level <= state.HighestKeyLevelSeen)
-				continue;
-
-			achievements.Add(new PersonalBestRunAchievement(character.Name, run.Mythic_Level, state));
-		}
-
-		return achievements;
+		return RunAchievementDetector.GetPersonalBestAchievements(run, m_db.Table<Character>(), characterProfiles, GetOrCreateDungeonAchievementState)
+			.Select(x => new PersonalBestRunAchievement(x.CharacterName, x.DungeonName, x.KeyLevel, x.State))
+			.ToList();
 	}
 
 	private CharacterAchievementState GetOrCreateAchievementState(Character character, string season)
@@ -187,6 +171,17 @@ public sealed class CheckRunsJob : IJob
 			return state;
 
 		state = new CharacterAchievementState { CharacterId = character.Id, Season = season };
+		m_db.Insert(state);
+		return state;
+	}
+
+	private CharacterDungeonAchievementState GetOrCreateDungeonAchievementState(Character character, string season, DungeonDto dungeon)
+	{
+		var state = m_db.Table<CharacterDungeonAchievementState>().FirstOrDefault(x => x.CharacterId == character.Id && x.Season == season && x.DungeonSlug == dungeon.Slug);
+		if (state is not null)
+			return state;
+
+		state = new CharacterDungeonAchievementState { CharacterId = character.Id, Season = season, DungeonSlug = dungeon.Slug, DungeonName = dungeon.Name };
 		m_db.Insert(state);
 		return state;
 	}
@@ -202,20 +197,6 @@ public sealed class CheckRunsJob : IJob
 		return state;
 	}
 
-	private static bool IsSameCharacter(RosterCharacterDto rosterCharacter, Character followedCharacter)
-	{
-		var characterName = rosterCharacter.Name.Split('-')[0];
-		var pathParts = rosterCharacter.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-		var region = pathParts.Length >= 2 ? pathParts[1] : null;
-		var realm = pathParts.Length >= 3 ? pathParts[2] : null;
-
-		return string.Equals(characterName, followedCharacter.Name, StringComparison.OrdinalIgnoreCase)
-			&& string.Equals(region, followedCharacter.Region, StringComparison.OrdinalIgnoreCase)
-			&& string.Equals(NormalizeRealmSlug(realm), NormalizeRealmSlug(followedCharacter.Realm), StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static string? NormalizeRealmSlug(string? realm) => realm?.Replace(' ', '-');
-
 	private static string GetRoleEmoji(Role role) => role switch
 	{
 		Role.Tank => "🛡️",
@@ -224,9 +205,9 @@ public sealed class CheckRunsJob : IJob
 		_ => throw new InvalidOperationException($"No emoji found for role {role}!"),
 	};
 
-	private sealed record PersonalBestRunAchievement(string CharacterName, int KeyLevel, CharacterAchievementState State)
+	private sealed record PersonalBestRunAchievement(string CharacterName, string DungeonName, int KeyLevel, CharacterDungeonAchievementState State)
 	{
-		public override string ToString() => $"🏆 {CharacterName} set a new personal best: **+{KeyLevel}**";
+		public override string ToString() => $"🏆 {CharacterName} set a new **{DungeonName}** personal best: **+{KeyLevel}**";
 	}
 
 	private readonly ILogger<CheckRunsJob> m_logger;

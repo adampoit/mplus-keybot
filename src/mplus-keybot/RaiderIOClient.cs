@@ -117,6 +117,21 @@ public sealed class MythicPlusRecentRunDto
 	public required string Completed_At { get; set; }
 
 	public string RunId => string.Join("", new Uri(Url).Segments.TakeLast(2));
+
+	public string DungeonSlug
+	{
+		get
+		{
+			var runIdParts = RunId.Split('/');
+			var runSlug = runIdParts[^1];
+			var firstDash = runSlug.IndexOf('-');
+			if (firstDash < 0)
+				return runSlug;
+
+			var secondDash = runSlug.IndexOf('-', firstDash + 1);
+			return secondDash < 0 ? runSlug : runSlug[(secondDash + 1)..];
+		}
+	}
 }
 
 public sealed class MythicPlusRunDto

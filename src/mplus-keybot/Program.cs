@@ -25,6 +25,7 @@ var host = Host.CreateDefaultBuilder(args)
 
 			db.CreateTable<Character>();
 			db.CreateTable<CharacterAchievementState>();
+			db.CreateTable<CharacterDungeonAchievementState>();
 			db.CreateTable<CharacterRankingAchievementState>();
 			db.CreateTable<DatabaseMigration>();
 			db.CreateTable<MythicPlusRun>();
