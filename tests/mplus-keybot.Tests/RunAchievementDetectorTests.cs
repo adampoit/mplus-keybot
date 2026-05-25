@@ -58,7 +58,7 @@ public sealed class RunAchievementDetectorTests
 	[InlineData("https://raider.io/mythic-plus-runs/season-mn-1/28919612-15-magisters-terrace", "magisters-terrace")]
 	public void ParsesDungeonSlugFromRecentRunUrl(string url, string expectedSlug)
 	{
-		var recentRun = new MythicPlusRecentRunDto
+		var recentRun = new MythicPlusProfileRunDto
 		{
 			Dungeon = "ignored",
 			Mythic_Level = 16,

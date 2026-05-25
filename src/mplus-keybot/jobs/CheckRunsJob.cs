@@ -79,18 +79,17 @@ public sealed class CheckRunsJob : IJob
 				.OrderBy(r => r.Role)
 				.Select(r => $"{GetRoleEmoji(r.Role)} [{r.Character.Name.Split('-')[0]}](https://raider.io{r.Character.Path}) - **{r.Role}** ({r.Character.Spec.Name} {r.Character.Class.Name}) - {r.Ranks.Score:0} Score"));
 
+			var runAchievements = GetRunAchievements(keystoneRun, characterProfiles);
+			var achievementsString = runAchievements.Count == 0 ? null : $"{Environment.NewLine}{Environment.NewLine}{string.Join(Environment.NewLine, runAchievements)}";
+
 			var embed = new EmbedBuilder()
 				.WithFooter(footer => footer.Text = "Data provided by Raider.IO")
 				.WithTitle($"+{keystoneRun.Mythic_Level} {keystoneRun.Dungeon.Name}")
 				.WithColor(Color.Gold)
-				.WithDescription($@"Cleared in {TimeSpan.FromMilliseconds(keystoneRun.Clear_Time_Ms):mm':'ss} of {TimeSpan.FromMilliseconds(keystoneRun.Keystone_Time_Ms):mm':'ss} ({percentageString}).{Environment.NewLine}{Environment.NewLine}{rosterString}")
+				.WithDescription($@"Cleared in {TimeSpan.FromMilliseconds(keystoneRun.Clear_Time_Ms):mm':'ss} of {TimeSpan.FromMilliseconds(keystoneRun.Keystone_Time_Ms):mm':'ss} ({percentageString}).{Environment.NewLine}{Environment.NewLine}{rosterString}{achievementsString}")
 				.WithUrl($"https://raider.io/mythic-plus-runs/{run.Id}")
 				.WithImageUrl($"https://cdnassets.raider.io/images/dungeons/expansion{keystoneRun.Dungeon.Expansion_Id}/base/{keystoneRun.Dungeon.Slug}.jpg")
 				.WithTimestamp(run.Date);
-
-			var runAchievements = GetRunAchievements(keystoneRun, characterProfiles);
-			if (runAchievements.Count > 0)
-				embed.AddField("Achievements", string.Join(Environment.NewLine, runAchievements));
 
 			await channel!.SendMessageAsync(embed: embed.Build()).ConfigureAwait(false);
 

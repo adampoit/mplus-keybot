@@ -31,6 +31,13 @@ public static class DatabaseMigrations
 			RemoveOverallKeyAchievementState(db);
 			db.Insert(new DatabaseMigration { Name = removeOverallKeyAchievementStateMigration, AppliedAt = DateTime.UtcNow });
 		}
+
+		const string repairDungeonAchievementStateMigration = "2026-05-25-repair-dungeon-achievement-state-from-best-runs";
+		if (!db.Table<DatabaseMigration>().Any(x => x.Name == repairDungeonAchievementStateMigration))
+		{
+			await SeedDungeonAchievementStateForExistingCharactersAsync(db, raiderIOClient).ConfigureAwait(false);
+			db.Insert(new DatabaseMigration { Name = repairDungeonAchievementStateMigration, AppliedAt = DateTime.UtcNow });
+		}
 	}
 
 	public static void SeedAchievementState(SQLiteConnection db, Character character, CharacterDto profile)
@@ -93,7 +100,7 @@ public static class DatabaseMigrations
 		if (season is null)
 			return;
 
-		foreach (var dungeonBest in profile.Mythic_Plus_Recent_Runs
+		foreach (var dungeonBest in profile.Mythic_Plus_Best_Runs
 			.Where(x => x.Clear_Time_Ms <= x.Par_Time_Ms)
 			.GroupBy(x => x.DungeonSlug)
 			.Select(group => group.OrderByDescending(x => x.Mythic_Level).First()))

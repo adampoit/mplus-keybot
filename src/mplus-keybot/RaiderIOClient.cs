@@ -26,7 +26,7 @@ public sealed class RaiderIOClient
 	}
 
 	public async Task<ServiceResult<CharacterDto>> GetCharacterAsync(string name, string realm, string region) => await GetJsonAsync<CharacterDto>(
-		$"https://raider.io/api/v1/characters/profile?region={region}&realm={realm}&name={name}&fields=mythic_plus_recent_runs,mythic_plus_scores_by_season:current,mythic_plus_ranks",
+		$"https://raider.io/api/v1/characters/profile?region={region}&realm={realm}&name={name}&fields=mythic_plus_recent_runs,mythic_plus_best_runs,mythic_plus_scores_by_season:current,mythic_plus_ranks",
 		(HttpStatusCode code, string content) =>
 		{
 			if (code == HttpStatusCode.BadRequest && content.Contains("Could not find requested character"))
@@ -99,7 +99,8 @@ public sealed class CharacterDto
 	public string? Class { get; set; }
 	public string? Active_Spec_Name { get; set; }
 	public string? Active_Spec_Role { get; set; }
-	public required IReadOnlyList<MythicPlusRecentRunDto> Mythic_Plus_Recent_Runs { get; set; }
+	public required IReadOnlyList<MythicPlusProfileRunDto> Mythic_Plus_Recent_Runs { get; set; }
+	public IReadOnlyList<MythicPlusProfileRunDto> Mythic_Plus_Best_Runs { get; set; } = [];
 	public IReadOnlyList<MythicPlusSeasonScoreDto> Mythic_Plus_Scores_By_Season { get; set; } = [];
 	public IReadOnlyDictionary<string, MythicPlusRankDto>? Mythic_Plus_Ranks { get; set; }
 
@@ -107,7 +108,7 @@ public sealed class CharacterDto
 	public double CurrentMythicPlusScore => Mythic_Plus_Scores_By_Season.FirstOrDefault()?.Scores.All ?? 0;
 }
 
-public sealed class MythicPlusRecentRunDto
+public sealed class MythicPlusProfileRunDto
 {
 	public required string Dungeon { get; set; }
 	public required int Mythic_Level { get; set; }
