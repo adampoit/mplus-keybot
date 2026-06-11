@@ -72,28 +72,18 @@ public sealed class CheckRunsJob : IJob
 				continue;
 
 			var keystoneRun = runInfo.Result!.KeystoneRun;
-			var percentage = (double)keystoneRun.Clear_Time_Ms / (double)keystoneRun.Keystone_Time_Ms;
-			var percentageString = percentage < 1 ? $"{1 - percentage:P1} remaining" : $"{percentage - 1:P1} over";
+			var personalBestAchievements = GetRunAchievements(keystoneRun, characterProfiles);
+			var seasonHighAchievements = GetSeasonHighAchievements(keystoneRun, characterProfiles);
+			var announcement = MythicPlusRunAnnouncement.From(
+				run.Id,
+				keystoneRun,
+				personalBestAchievements.Select(x => x.CharacterName),
+				seasonHighAchievements.Select(x => x.CharacterName));
+			var embed = RunAnnouncementFormatter.BuildEmbed(announcement);
 
-			var rosterString = string.Join(Environment.NewLine, keystoneRun.Roster
-				.OrderBy(r => r.Role)
-				.Select(r => $"{GetRoleEmoji(r.Role)} [{r.Character.Name.Split('-')[0]}](https://raider.io{r.Character.Path}) - **{r.Role}** ({r.Character.Spec.Name} {r.Character.Class.Name}) - {r.Ranks.Score:0} Score"));
+			await channel!.SendMessageAsync(embed: embed).ConfigureAwait(false);
 
-			var runAchievements = GetRunAchievements(keystoneRun, characterProfiles);
-			var achievementsString = runAchievements.Count == 0 ? null : $"{Environment.NewLine}{Environment.NewLine}{string.Join(Environment.NewLine, runAchievements)}";
-
-			var embed = new EmbedBuilder()
-				.WithFooter(footer => footer.Text = "Data provided by Raider.IO")
-				.WithTitle($"+{keystoneRun.Mythic_Level} {keystoneRun.Dungeon.Name}")
-				.WithColor(Color.Gold)
-				.WithDescription($@"Cleared in {TimeSpan.FromMilliseconds(keystoneRun.Clear_Time_Ms):mm':'ss} of {TimeSpan.FromMilliseconds(keystoneRun.Keystone_Time_Ms):mm':'ss} ({percentageString}).{Environment.NewLine}{Environment.NewLine}{rosterString}{achievementsString}")
-				.WithUrl($"https://raider.io/mythic-plus-runs/{run.Id}")
-				.WithImageUrl($"https://cdnassets.raider.io/images/dungeons/expansion{keystoneRun.Dungeon.Expansion_Id}/base/{keystoneRun.Dungeon.Slug}.jpg")
-				.WithTimestamp(run.Date);
-
-			await channel!.SendMessageAsync(embed: embed.Build()).ConfigureAwait(false);
-
-			foreach (var achievement in runAchievements.OfType<PersonalBestRunAchievement>())
+			foreach (var achievement in personalBestAchievements)
 			{
 				achievement.State.DungeonName = keystoneRun.Dungeon.Name;
 				achievement.State.HighestTimedKeyLevelSeen = keystoneRun.Mythic_Level;
@@ -163,6 +153,33 @@ public sealed class CheckRunsJob : IJob
 			.ToList();
 	}
 
+	private List<SeasonHighRunAchievement> GetSeasonHighAchievements(MythicPlusKeystoneRunDto run, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
+	{
+		var achievements = new List<SeasonHighRunAchievement>();
+		if (run.Mythic_Level < AchievementRules.MinimumPersonalBestAnnouncementLevel || run.Clear_Time_Ms > run.Keystone_Time_Ms)
+			return achievements;
+
+		foreach (var character in m_db.Table<Character>())
+		{
+			if (!characterProfiles.TryGetValue(character.Id, out var profile) || profile.CurrentMythicPlusSeason is not { } season)
+				continue;
+
+			if (!run.Roster.Any(rosterMember => RunAchievementDetector.IsSameCharacter(rosterMember.Character, character)))
+				continue;
+
+			var highestTimedKeySeen = m_db.Table<CharacterDungeonAchievementState>()
+				.Where(x => x.CharacterId == character.Id && x.Season == season)
+				.Select(x => x.HighestTimedKeyLevelSeen)
+				.DefaultIfEmpty()
+				.Max();
+
+			if (run.Mythic_Level > highestTimedKeySeen)
+				achievements.Add(new SeasonHighRunAchievement(character.Name, run.Mythic_Level));
+		}
+
+		return achievements;
+	}
+
 	private CharacterAchievementState GetOrCreateAchievementState(Character character, string season)
 	{
 		var state = m_db.Table<CharacterAchievementState>().FirstOrDefault(x => x.CharacterId == character.Id && x.Season == season);
@@ -196,18 +213,9 @@ public sealed class CheckRunsJob : IJob
 		return state;
 	}
 
-	private static string GetRoleEmoji(Role role) => role switch
-	{
-		Role.Tank => "🛡️",
-		Role.Healer => "💉",
-		Role.Dps => "⚔️",
-		_ => throw new InvalidOperationException($"No emoji found for role {role}!"),
-	};
+	private sealed record PersonalBestRunAchievement(string CharacterName, string DungeonName, int KeyLevel, CharacterDungeonAchievementState State);
 
-	private sealed record PersonalBestRunAchievement(string CharacterName, string DungeonName, int KeyLevel, CharacterDungeonAchievementState State)
-	{
-		public override string ToString() => $"🏆 {CharacterName} set a new **{DungeonName}** personal best: **+{KeyLevel}**";
-	}
+	private sealed record SeasonHighRunAchievement(string CharacterName, int KeyLevel);
 
 	private readonly ILogger<CheckRunsJob> m_logger;
 	private readonly DiscordSocketClient m_discordClient;
