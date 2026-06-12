@@ -11,7 +11,7 @@
     flake-utils,
     nixpkgs,
   }: let
-    version = "0.0.0-${self.shortRev or "dirty"}";
+    version = "0.0.0-g${self.shortRev or "dirty"}";
   in
     flake-utils.lib.eachDefaultSystem (
       system: let
