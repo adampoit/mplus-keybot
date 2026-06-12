@@ -1,156 +1,149 @@
-﻿using Discord;
-using Discord.Net;
 using Discord.WebSocket;
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using Quartz;
 using Quartz.Logging;
 using SQLite;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 LogProvider.SetCurrentLogProvider(new ConsoleLogProvider());
 
-var host = Host.CreateDefaultBuilder(args)
-	.UseSystemd()
-	.ConfigureServices((context, services) =>
+var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSystemd();
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", Microsoft.Extensions.Logging.LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Http.Result.RedirectResult", Microsoft.Extensions.Logging.LogLevel.Warning);
+var discordTokenConfigured = !string.IsNullOrWhiteSpace(builder.Configuration["Discord:Token"]);
+
+builder.Services.AddHttpClient<RaiderIOClient>();
+builder.Services.AddHttpClient<IBlizzardProfileClient, BlizzardProfileClient>();
+builder.Services.AddSingleton<DiscordSocketClient>();
+builder.Services.AddSingleton<RaiderIOClient>();
+builder.Services.AddSingleton<WebUrlBuilder>();
+builder.Services.AddSingleton<CharacterRepository>();
+builder.Services.AddSingleton<CharacterManagementService>();
+builder.Services.AddSingleton<ICharacterFollowAnnouncer, DiscordCharacterFollowAnnouncer>();
+builder.Services.AddSingleton<FollowFlowStateService>();
+if (discordTokenConfigured)
+	builder.Services.AddHostedService<DiscordBotHostedService>();
+builder.Services.AddSingleton<SQLiteConnection>(_ =>
+{
+	var db = new SQLiteConnection("mplus-data.db");
+
+	db.CreateTable<Character>();
+	db.CreateTable<CharacterAchievementState>();
+	db.CreateTable<CharacterDungeonAchievementState>();
+	db.CreateTable<CharacterRankingAchievementState>();
+	db.CreateTable<DatabaseMigration>();
+	db.CreateTable<FollowFlowState>();
+	db.CreateTable<MythicPlusRun>();
+	db.CreateTable<VerifiedCharacterSession>();
+
+	return db;
+});
+
+builder.Services.AddAntiforgery(options =>
+{
+	var urls = new WebUrlBuilder(builder.Configuration);
+	options.Cookie.Name = ".mplus-keybot.antiforgery";
+	options.Cookie.HttpOnly = true;
+	options.Cookie.SameSite = SameSiteMode.Lax;
+	options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+	options.Cookie.Path = urls.CookiePath;
+});
+
+builder.Services
+	.AddAuthentication(options =>
 	{
-		services.AddHttpClient<RaiderIOClient>();
-		services.AddSingleton<DiscordSocketClient>();
-		services.AddSingleton<RaiderIOClient>();
-		services.AddSingleton<SQLiteConnection>(c =>
-		{
-			var db = new SQLiteConnection("mplus-data.db");
-
-			db.CreateTable<Character>();
-			db.CreateTable<CharacterAchievementState>();
-			db.CreateTable<CharacterDungeonAchievementState>();
-			db.CreateTable<CharacterRankingAchievementState>();
-			db.CreateTable<DatabaseMigration>();
-			db.CreateTable<MythicPlusRun>();
-
-			return db;
-		});
-
-		services.AddQuartz(q =>
-		{
-			q.UseSimpleTypeLoader();
-			q.UseInMemoryStore();
-			q.UseDefaultThreadPool(tp =>
-			{
-				tp.MaxConcurrency = 10;
-			});
-
-			q.ScheduleJob<CheckRunsJob>(trigger => trigger
-				.WithIdentity("Every 5 Minutes")
-				.WithSimpleSchedule(x => x
-					.WithIntervalInMinutes(5)
-					.RepeatForever())
-				.WithDescription("Checks Raider.IO for recent mythic plus runs on followed characters.")
-			);
-
-		});
-		services.AddQuartzHostedService(opt =>
-		{
-			opt.WaitForJobsToComplete = true;
-		});
+		options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+		options.DefaultChallengeScheme = "Blizzard";
 	})
-	.Build();
+	.AddCookie(options =>
+	{
+		var urls = new WebUrlBuilder(builder.Configuration);
+		options.Cookie.Name = ".mplus-keybot.management";
+		options.Cookie.HttpOnly = true;
+		options.Cookie.SameSite = SameSiteMode.Lax;
+		options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+		options.Cookie.Path = urls.CookiePath;
+		options.ExpireTimeSpan = TimeSpan.FromHours(24);
+		options.SlidingExpiration = false;
+	})
+	.AddOpenIdConnect("Blizzard", options =>
+	{
+		options.Authority = "https://oauth.battle.net";
+		options.MetadataAddress = "https://oauth.battle.net/.well-known/openid-configuration";
+		options.ClientId = builder.Configuration["Blizzard:ClientId"] ?? string.Empty;
+		options.ClientSecret = builder.Configuration["Blizzard:ClientSecret"] ?? string.Empty;
+		options.ResponseType = OpenIdConnectResponseType.Code;
+		options.CallbackPath = "/auth/blizzard/callback";
+		options.SaveTokens = true;
+		options.GetClaimsFromUserInfoEndpoint = false;
+		options.Scope.Clear();
+		options.Scope.Add("openid");
+		options.Scope.Add("wow.profile");
+		options.Events = new OpenIdConnectEvents
+		{
+			OnRedirectToIdentityProvider = context =>
+			{
+				var urls = context.HttpContext.RequestServices.GetRequiredService<WebUrlBuilder>();
+				context.ProtocolMessage.RedirectUri = urls.BuildPublicUrl("/auth/blizzard/callback");
+				return Task.CompletedTask;
+			},
+			OnTokenResponseReceived = context =>
+			{
+				var grantedScope = context.TokenEndpointResponse.Scope;
+				if (!string.IsNullOrWhiteSpace(grantedScope) && context.Properties is not null)
+					context.Properties.Items["GrantedScope"] = grantedScope;
 
-var discordClient = host.Services.GetRequiredService<DiscordSocketClient>();
-var logger = host.Services.GetRequiredService<ILogger<DiscordSocketClient>>();
-var config = host.Services.GetRequiredService<IConfiguration>();
-var raiderIOClient = host.Services.GetRequiredService<RaiderIOClient>();
-var db = host.Services.GetRequiredService<SQLiteConnection>();
+				return Task.CompletedTask;
+			},
+		};
+	});
+builder.Services.AddAuthorization();
 
+builder.Services.AddQuartz(q =>
+{
+	q.UseSimpleTypeLoader();
+	q.UseInMemoryStore();
+	q.UseDefaultThreadPool(tp =>
+	{
+		tp.MaxConcurrency = 10;
+	});
+
+	var checkRunsJobKey = new JobKey(CheckRunsJob.JobName);
+	q.AddJob<CheckRunsJob>(checkRunsJobKey, job => job
+		.WithDescription("Checks Raider.IO for recent mythic plus runs on followed characters."));
+	q.AddTrigger(trigger => trigger
+		.ForJob(checkRunsJobKey)
+		.WithIdentity(CheckRunsJob.RecurringTriggerName)
+		.WithSimpleSchedule(x => x
+			.WithIntervalInMinutes(5)
+			.RepeatForever()));
+});
+builder.Services.AddQuartzHostedService(opt =>
+{
+	opt.WaitForJobsToComplete = true;
+});
+
+var app = builder.Build();
+var webUrls = app.Services.GetRequiredService<WebUrlBuilder>();
+if (!string.IsNullOrWhiteSpace(webUrls.PathBase))
+	app.UsePathBase(webUrls.PathBase);
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapFollowWebRoutes();
+
+var db = app.Services.GetRequiredService<SQLiteConnection>();
+var raiderIOClient = app.Services.GetRequiredService<RaiderIOClient>();
 await DatabaseMigrations.RunAsync(db, raiderIOClient).ConfigureAwait(false);
 
-discordClient.Log += (LogMessage msg) =>
-{
-	logger.LogInformation(msg.ToString());
-
-	return Task.CompletedTask;
-};
-
-await discordClient.LoginAsync(TokenType.Bot, config["Discord:Token"]).ConfigureAwait(false);
-await discordClient.StartAsync().ConfigureAwait(false);
-var ready = false;
-discordClient.Ready += async () =>
-{
-	var guild = discordClient.Guilds.Single();
-	var guildCommand = new SlashCommandBuilder();
-	guildCommand
-		.WithName("follow")
-		.WithDescription("Follows a specific character on Raider.IO.")
-		.AddOption("character", ApplicationCommandOptionType.String, "Your character name.", isRequired: true)
-		.AddOption("realm", ApplicationCommandOptionType.String, "Your character's server.", isRequired: true)
-		.AddOption("region", ApplicationCommandOptionType.String, "Your character's region.", isRequired: true);
-
-	try
-	{
-		await guild.CreateApplicationCommandAsync(guildCommand.Build()).ConfigureAwait(false);
-	}
-	catch (HttpException exception)
-	{
-		var json = JsonConvert.SerializeObject(exception.Errors, Formatting.Indented);
-		logger.LogError(json);
-	}
-
-	ready = true;
-
-	return;
-};
-discordClient.SlashCommandExecuted += async (SocketSlashCommand command) =>
-{
-	switch (command.Data.Name)
-	{
-		case "follow":
-			var characterName = (command.Data.Options.First(x => x.Name == "character").Value as string)!;
-			var realm = (command.Data.Options.First(x => x.Name == "realm").Value as string)!;
-			var region = (command.Data.Options.First(x => x.Name == "region").Value as string)!;
-
-			var profile = await raiderIOClient.GetCharacterAsync(characterName, realm, region).ConfigureAwait(false);
-			if (profile.IsFailure)
-			{
-				var embed = new EmbedBuilder()
-					.WithColor(Color.Red)
-					.WithDescription($@"Error! Unable to follow character.{Environment.NewLine}{Environment.NewLine}To follow a character, the general format is `/follow character realm region`.");
-
-				await command.RespondAsync(embed: embed.Build()).ConfigureAwait(false);
-			}
-			else
-			{
-				db.InsertAll(profile.Result!.Mythic_Plus_Recent_Runs.Select(x => new MythicPlusRun { Id = x.RunId, Date = DateTimeOffset.Parse(x.Completed_At) }), "OR IGNORE");
-				var character = new Character
-				{
-					Name = characterName!,
-					Realm = realm!,
-					Region = region!,
-				};
-				var rowsInserted = db.Insert(character, "OR IGNORE");
-
-				if (rowsInserted == 1)
-				{
-					DatabaseMigrations.SeedAchievementState(db, character, profile.Result!);
-					await command.RespondAsync($"Now following {characterName} on {realm}-{region}!").ConfigureAwait(false);
-				}
-				else
-				{
-					await command.RespondAsync($"Already following {characterName} on {realm}-{region}!").ConfigureAwait(false);
-				}
-			}
-
-			break;
-		default:
-			throw new InvalidOperationException($"Unknown slash command {command.Data.Name}!");
-	}
-};
-
-SpinWait.SpinUntil(() => ready);
-
-host.Run();
-
+await app.RunAsync().ConfigureAwait(false);
 
 sealed class ConsoleLogProvider : ILogProvider
 {

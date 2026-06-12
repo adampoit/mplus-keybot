@@ -4,6 +4,17 @@ public static class DatabaseMigrations
 {
 	public static async Task RunAsync(SQLiteConnection db, RaiderIOClient raiderIOClient)
 	{
+		const string addCharacterFollowStateMigration = "2026-06-13-add-character-follow-state";
+		if (!db.Table<DatabaseMigration>().Any(x => x.Name == addCharacterFollowStateMigration))
+		{
+			EnsureCharacterFollowColumns(db);
+			db.Insert(new DatabaseMigration { Name = addCharacterFollowStateMigration, AppliedAt = DateTime.UtcNow });
+		}
+		else
+		{
+			EnsureCharacterFollowColumns(db);
+		}
+
 		const string seedExistingAchievementStateMigration = "2026-05-16-seed-existing-achievement-state";
 		if (!db.Table<DatabaseMigration>().Any(x => x.Name == seedExistingAchievementStateMigration))
 		{
@@ -38,6 +49,35 @@ public static class DatabaseMigrations
 			await SeedDungeonAchievementStateForExistingCharactersAsync(db, raiderIOClient).ConfigureAwait(false);
 			db.Insert(new DatabaseMigration { Name = repairDungeonAchievementStateMigration, AppliedAt = DateTime.UtcNow });
 		}
+
+		const string addCharacterTrackingMigration = "2026-06-13-add-character-tracking";
+		if (!db.Table<DatabaseMigration>().Any(x => x.Name == addCharacterTrackingMigration))
+		{
+			AddColumnIfMissing(db, "Character", "LastCheckedAt", "TEXT NULL");
+			AddColumnIfMissing(db, "Character", "CurrentScore", "REAL NOT NULL DEFAULT 0");
+			AddColumnIfMissing(db, "Character", "CurrentSeason", "TEXT NULL");
+			db.Insert(new DatabaseMigration { Name = addCharacterTrackingMigration, AppliedAt = DateTime.UtcNow });
+		}
+		else
+		{
+			AddColumnIfMissing(db, "Character", "LastCheckedAt", "TEXT NULL");
+			AddColumnIfMissing(db, "Character", "CurrentScore", "REAL NOT NULL DEFAULT 0");
+			AddColumnIfMissing(db, "Character", "CurrentSeason", "TEXT NULL");
+		}
+	}
+
+	public static void EnsureCharacterFollowColumns(SQLiteConnection db)
+	{
+		AddColumnIfMissing(db, "Character", "IsFollowed", "INTEGER NOT NULL DEFAULT 1");
+		AddColumnIfMissing(db, "Character", "LastVerifiedAt", "TEXT NULL");
+		AddColumnIfMissing(db, "Character", "LastManagedByDiscordUserId", "TEXT NULL");
+		AddColumnIfMissing(db, "Character", "BlizzardCharacterId", "INTEGER NULL");
+		AddColumnIfMissing(db, "Character", "RealmDisplayName", "TEXT NULL");
+		AddColumnIfMissing(db, "Character", "LastCheckedAt", "TEXT NULL");
+		AddColumnIfMissing(db, "Character", "CurrentScore", "REAL NOT NULL DEFAULT 0");
+		AddColumnIfMissing(db, "Character", "CurrentSeason", "TEXT NULL");
+		db.Execute("UPDATE Character SET IsFollowed = 1 WHERE IsFollowed IS NULL");
+		NormalizeCharacterIdentities(db);
 	}
 
 	public static void SeedAchievementState(SQLiteConnection db, Character character, CharacterDto profile)
@@ -128,6 +168,181 @@ public static class DatabaseMigrations
 		}
 	}
 
+	private static void NormalizeCharacterIdentities(SQLiteConnection db)
+	{
+		var groups = db.Table<Character>()
+			.ToList()
+			.GroupBy(GetNormalizedIdentity, NormalizedCharacterIdentityComparer.Instance);
+
+		foreach (var group in groups)
+		{
+			var characters = group.OrderBy(x => x.Id).ToList();
+			var survivor = characters.FirstOrDefault(IsAlreadyNormalized) ?? characters.First();
+
+			foreach (var duplicate in characters.Where(x => x.Id != survivor.Id))
+			{
+				MergeAchievementState(db, survivor.Id, duplicate.Id);
+				MergeDungeonAchievementState(db, survivor.Id, duplicate.Id);
+				MergeRankingAchievementState(db, survivor.Id, duplicate.Id);
+				MergeCharacterMetadata(survivor, duplicate);
+				db.Delete(duplicate);
+			}
+
+			var identity = GetNormalizedIdentity(survivor);
+			survivor.Name = identity.Name;
+			survivor.Realm = identity.Realm;
+			survivor.Region = identity.Region;
+			db.Update(survivor);
+		}
+	}
+
+	private static NormalizedCharacterIdentity GetNormalizedIdentity(Character character)
+	{
+		var key = CharacterKey.From(character.Region, character.Realm, character.Name);
+		return new NormalizedCharacterIdentity(key.Region, key.Realm, key.Name, key.Name.ToLowerInvariant());
+	}
+
+	private static bool IsAlreadyNormalized(Character character)
+	{
+		var identity = GetNormalizedIdentity(character);
+		return character.Name == identity.Name && character.Realm == identity.Realm && character.Region == identity.Region;
+	}
+
+	private static void MergeCharacterMetadata(Character target, Character source)
+	{
+		target.IsFollowed |= source.IsFollowed;
+		target.ErroringSince = MergeErroringSince(target.ErroringSince, source.ErroringSince);
+		target.LastVerifiedAt = MaxDate(target.LastVerifiedAt, source.LastVerifiedAt);
+		if (source.LastVerifiedAt is not null && (target.LastVerifiedAt is null || source.LastVerifiedAt >= target.LastVerifiedAt))
+			target.LastManagedByDiscordUserId = source.LastManagedByDiscordUserId ?? target.LastManagedByDiscordUserId;
+		target.BlizzardCharacterId ??= source.BlizzardCharacterId;
+		target.RealmDisplayName ??= source.RealmDisplayName;
+		target.LastCheckedAt = MaxDate(target.LastCheckedAt, source.LastCheckedAt);
+		if (source.LastCheckedAt is not null && (target.LastCheckedAt is null || source.LastCheckedAt >= target.LastCheckedAt))
+		{
+			target.CurrentScore = source.CurrentScore;
+			target.CurrentSeason = source.CurrentSeason ?? target.CurrentSeason;
+		}
+	}
+
+	private static DateTime? MergeErroringSince(DateTime? target, DateTime? source)
+	{
+		if (target is null || source is null)
+			return null;
+
+		return target < source ? target : source;
+	}
+
+	private static DateTime? MaxDate(DateTime? target, DateTime? source)
+	{
+		if (target is null)
+			return source;
+		if (source is null)
+			return target;
+		return target > source ? target : source;
+	}
+
+	private static void MergeAchievementState(SQLiteConnection db, int targetCharacterId, int sourceCharacterId)
+	{
+		if (!TableExists(db, "CharacterAchievementState"))
+			return;
+
+		foreach (var source in db.Table<CharacterAchievementState>().Where(x => x.CharacterId == sourceCharacterId).ToList())
+		{
+			var target = db.Table<CharacterAchievementState>().FirstOrDefault(x => x.CharacterId == targetCharacterId && x.Season == source.Season);
+			if (target is null)
+			{
+				source.CharacterId = targetCharacterId;
+				db.Update(source);
+				continue;
+			}
+
+			target.HighestScoreMilestoneAnnounced = Math.Max(target.HighestScoreMilestoneAnnounced, source.HighestScoreMilestoneAnnounced);
+			db.Update(target);
+			db.Delete(source);
+		}
+	}
+
+	private static void MergeDungeonAchievementState(SQLiteConnection db, int targetCharacterId, int sourceCharacterId)
+	{
+		if (!TableExists(db, "CharacterDungeonAchievementState"))
+			return;
+
+		foreach (var source in db.Table<CharacterDungeonAchievementState>().Where(x => x.CharacterId == sourceCharacterId).ToList())
+		{
+			var target = db.Table<CharacterDungeonAchievementState>().FirstOrDefault(x => x.CharacterId == targetCharacterId && x.Season == source.Season && x.DungeonSlug == source.DungeonSlug);
+			if (target is null)
+			{
+				source.CharacterId = targetCharacterId;
+				db.Update(source);
+				continue;
+			}
+
+			target.DungeonName = string.IsNullOrWhiteSpace(target.DungeonName) ? source.DungeonName : target.DungeonName;
+			target.HighestTimedKeyLevelSeen = Math.Max(target.HighestTimedKeyLevelSeen, source.HighestTimedKeyLevelSeen);
+			target.HighestTimedKeyLevelAnnounced = Math.Max(target.HighestTimedKeyLevelAnnounced, source.HighestTimedKeyLevelAnnounced);
+			db.Update(target);
+			db.Delete(source);
+		}
+	}
+
+	private static void MergeRankingAchievementState(SQLiteConnection db, int targetCharacterId, int sourceCharacterId)
+	{
+		if (!TableExists(db, "CharacterRankingAchievementState"))
+			return;
+
+		foreach (var source in db.Table<CharacterRankingAchievementState>().Where(x => x.CharacterId == sourceCharacterId).ToList())
+		{
+			var target = db.Table<CharacterRankingAchievementState>().FirstOrDefault(x => x.CharacterId == targetCharacterId && x.Season == source.Season && x.Lane == source.Lane && x.Category == source.Category);
+			if (target is null)
+			{
+				source.CharacterId = targetCharacterId;
+				db.Update(source);
+				continue;
+			}
+
+			target.BestBandAnnounced = MergeBestBand(target.BestBandAnnounced, source.BestBandAnnounced);
+			db.Update(target);
+			db.Delete(source);
+		}
+	}
+
+	private static int MergeBestBand(int target, int source)
+	{
+		if (target == 0)
+			return source;
+		if (source == 0)
+			return target;
+		return Math.Min(target, source);
+	}
+
+	private static bool TableExists(SQLiteConnection db, string tableName) => db.ExecuteScalar<int>(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+		tableName) > 0;
+
+	private sealed record NormalizedCharacterIdentity(string Region, string Realm, string Name, string NameKey);
+
+	private sealed class NormalizedCharacterIdentityComparer : IEqualityComparer<NormalizedCharacterIdentity>
+	{
+		public static readonly NormalizedCharacterIdentityComparer Instance = new();
+
+		public bool Equals(NormalizedCharacterIdentity? x, NormalizedCharacterIdentity? y) =>
+			x is not null && y is not null &&
+			x.Region == y.Region &&
+			x.Realm == y.Realm &&
+			x.NameKey == y.NameKey;
+
+		public int GetHashCode(NormalizedCharacterIdentity obj) => HashCode.Combine(obj.Region, obj.Realm, obj.NameKey);
+	}
+
+	private static void AddColumnIfMissing(SQLiteConnection db, string tableName, string columnName, string columnDefinition)
+	{
+		if (db.GetTableInfo(tableName).Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
+			return;
+
+		db.Execute($"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition}");
+	}
+
 	private static void RemoveOverallKeyAchievementState(SQLiteConnection db)
 	{
 		db.Execute("DROP INDEX IF EXISTS IX_CharacterAchievementState_Character_Season");
@@ -149,7 +364,7 @@ FROM CharacterAchievementState");
 
 	private static async Task SeedAchievementStateForExistingCharactersAsync(SQLiteConnection db, RaiderIOClient raiderIOClient)
 	{
-		foreach (var character in db.Table<Character>())
+		foreach (var character in db.Table<Character>().Where(x => x.IsFollowed))
 		{
 			var profile = await raiderIOClient.GetCharacterAsync(character.Name, character.Realm, character.Region).ConfigureAwait(false);
 			if (profile.IsFailure)
@@ -161,7 +376,7 @@ FROM CharacterAchievementState");
 
 	private static async Task SeedDungeonAchievementStateForExistingCharactersAsync(SQLiteConnection db, RaiderIOClient raiderIOClient)
 	{
-		foreach (var character in db.Table<Character>())
+		foreach (var character in db.Table<Character>().Where(x => x.IsFollowed))
 		{
 			var profile = await raiderIOClient.GetCharacterAsync(character.Name, character.Realm, character.Region).ConfigureAwait(false);
 			if (profile.IsFailure)

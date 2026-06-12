@@ -8,13 +8,17 @@ using SQLite;
 
 public sealed class CheckRunsJob : IJob
 {
-	public CheckRunsJob(ILogger<CheckRunsJob> logger, DiscordSocketClient discordClient, RaiderIOClient raiderIOClient, SQLiteConnection db, IConfiguration config)
+	public const string JobName = "CheckRunsJob";
+	public const string RecurringTriggerName = "Every 5 Minutes";
+
+	public CheckRunsJob(ILogger<CheckRunsJob> logger, DiscordSocketClient discordClient, RaiderIOClient raiderIOClient, SQLiteConnection db, CharacterRepository characters, IConfiguration config)
 	{
 		m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
 		m_raiderIOClient = raiderIOClient ?? throw new ArgumentNullException(nameof(raiderIOClient));
 		m_db = db ?? throw new ArgumentNullException(nameof(db));
-		m_discordChannel = config["Discord:Channel"]!;
+		m_characters = characters ?? throw new ArgumentNullException(nameof(characters));
+		m_discordChannel = config["Discord:Channel"];
 	}
 
 	public async Task Execute(IJobExecutionContext context)
@@ -22,12 +26,14 @@ public sealed class CheckRunsJob : IJob
 		var stopwatch = Stopwatch.StartNew();
 		m_logger.LogInformation($"Starting {nameof(CheckRunsJob)} job.");
 
-		var guild = m_discordClient.Guilds.Single();
-		var channel = guild.Channels.Single(c => c.Name == m_discordChannel) as IMessageChannel;
+		var channel = GetAnnouncementChannel();
+		if (channel is null)
+			m_logger.LogInformation("No Discord announcement channel is available; syncing Raider.IO data without posting announcements.");
 
 		var characterProfiles = new Dictionary<int, CharacterDto>();
+		var followedCharacters = m_characters.GetFollowedCharacters();
 		var runs = new HashSet<MythicPlusRun>();
-		foreach (var character in m_db.Table<Character>())
+		foreach (var character in followedCharacters)
 		{
 			var profile = await m_raiderIOClient.GetCharacterAsync(character.Name, character.Realm, character.Region).ConfigureAwait(false);
 			if (profile.IsFailure)
@@ -35,30 +41,27 @@ public sealed class CheckRunsJob : IJob
 				if (profile.Error == ErrorResult.CharacterNotFound)
 				{
 					character.ErroringSince ??= DateTime.UtcNow;
-					if (character.ErroringSince < DateTime.UtcNow - TimeSpan.FromHours(24))
-					{
-						await channel!.SendMessageAsync($"Unfollowing {character.Name} on {character.Realm}-{character.Region}! Could not access profile for over 24 hours.").ConfigureAwait(false);
-						m_db.Delete(character);
-					}
-					else
-					{
-						m_db.Update(character);
-					}
-
+					m_db.Update(character);
 					continue;
 				}
 				else
 				{
 					character.ErroringSince = null;
+					m_db.Update(character);
 				}
 
 				continue;
 			}
 
 			character.ErroringSince = null;
+			character.LastCheckedAt = DateTime.UtcNow;
+			character.CurrentScore = profile.Result!.CurrentMythicPlusScore;
+			character.CurrentSeason = profile.Result!.CurrentMythicPlusSeason;
 			m_db.Update(character);
 			characterProfiles[character.Id] = profile.Result!;
-			await AnnounceCharacterAchievementsAsync(channel!, character, profile.Result!).ConfigureAwait(false);
+
+			if (channel is not null)
+				await AnnounceCharacterAchievementsAsync(channel, character, profile.Result!).ConfigureAwait(false);
 
 			runs.UnionWith(profile.Result!.Mythic_Plus_Recent_Runs
 				.Select(run => new MythicPlusRun { Id = run.RunId, Date = DateTimeOffset.Parse(run.Completed_At) })
@@ -72,22 +75,26 @@ public sealed class CheckRunsJob : IJob
 				continue;
 
 			var keystoneRun = runInfo.Result!.KeystoneRun;
-			var personalBestAchievements = GetRunAchievements(keystoneRun, characterProfiles);
-			var seasonHighAchievements = GetSeasonHighAchievements(keystoneRun, characterProfiles);
-			var announcement = MythicPlusRunAnnouncement.From(
-				run.Id,
-				keystoneRun,
-				personalBestAchievements.Select(x => x.CharacterName),
-				seasonHighAchievements.Select(x => x.CharacterName));
-			var embed = RunAnnouncementFormatter.BuildEmbed(announcement);
+			var personalBestAchievements = GetRunAchievements(keystoneRun, followedCharacters, characterProfiles);
+			var seasonHighAchievements = GetSeasonHighAchievements(keystoneRun, followedCharacters, characterProfiles);
+			if (channel is not null)
+			{
+				var announcement = MythicPlusRunAnnouncement.From(
+					run.Id,
+					keystoneRun,
+					personalBestAchievements.Select(x => x.CharacterName),
+					seasonHighAchievements.Select(x => x.CharacterName));
+				var embed = RunAnnouncementFormatter.BuildEmbed(announcement);
 
-			await channel!.SendMessageAsync(embed: embed).ConfigureAwait(false);
+				await channel.SendMessageAsync(embed: embed).ConfigureAwait(false);
+			}
 
 			foreach (var achievement in personalBestAchievements)
 			{
 				achievement.State.DungeonName = keystoneRun.Dungeon.Name;
 				achievement.State.HighestTimedKeyLevelSeen = keystoneRun.Mythic_Level;
-				achievement.State.HighestTimedKeyLevelAnnounced = keystoneRun.Mythic_Level;
+				if (channel is not null)
+					achievement.State.HighestTimedKeyLevelAnnounced = keystoneRun.Mythic_Level;
 				m_db.Update(achievement.State);
 			}
 
@@ -95,6 +102,15 @@ public sealed class CheckRunsJob : IJob
 		}
 
 		m_logger.LogInformation($"Finished {nameof(CheckRunsJob)} job after {stopwatch.Elapsed}.");
+	}
+
+	private IMessageChannel? GetAnnouncementChannel()
+	{
+		if (string.IsNullOrWhiteSpace(m_discordChannel))
+			return null;
+
+		var guild = m_discordClient.Guilds.SingleOrDefault();
+		return guild?.Channels.SingleOrDefault(c => c.Name == m_discordChannel) as IMessageChannel;
 	}
 
 	private async Task AnnounceCharacterAchievementsAsync(IMessageChannel channel, Character character, CharacterDto profile)
@@ -142,24 +158,24 @@ public sealed class CheckRunsJob : IJob
 		}
 	}
 
-	private List<PersonalBestRunAchievement> GetRunAchievements(MythicPlusKeystoneRunDto run, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
+	private List<PersonalBestRunAchievement> GetRunAchievements(MythicPlusKeystoneRunDto run, IReadOnlyList<Character> followedCharacters, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
 	{
 		var achievements = new List<PersonalBestRunAchievement>();
 		if (run.Mythic_Level < AchievementRules.MinimumPersonalBestAnnouncementLevel || run.Clear_Time_Ms > run.Keystone_Time_Ms)
 			return achievements;
 
-		return RunAchievementDetector.GetPersonalBestAchievements(run, m_db.Table<Character>(), characterProfiles, GetOrCreateDungeonAchievementState)
+		return RunAchievementDetector.GetPersonalBestAchievements(run, followedCharacters, characterProfiles, GetOrCreateDungeonAchievementState)
 			.Select(x => new PersonalBestRunAchievement(x.CharacterName, x.DungeonName, x.KeyLevel, x.State))
 			.ToList();
 	}
 
-	private List<SeasonHighRunAchievement> GetSeasonHighAchievements(MythicPlusKeystoneRunDto run, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
+	private List<SeasonHighRunAchievement> GetSeasonHighAchievements(MythicPlusKeystoneRunDto run, IReadOnlyList<Character> followedCharacters, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
 	{
 		var achievements = new List<SeasonHighRunAchievement>();
 		if (run.Mythic_Level < AchievementRules.MinimumPersonalBestAnnouncementLevel || run.Clear_Time_Ms > run.Keystone_Time_Ms)
 			return achievements;
 
-		foreach (var character in m_db.Table<Character>())
+		foreach (var character in followedCharacters)
 		{
 			if (!characterProfiles.TryGetValue(character.Id, out var profile) || profile.CurrentMythicPlusSeason is not { } season)
 				continue;
@@ -221,5 +237,6 @@ public sealed class CheckRunsJob : IJob
 	private readonly DiscordSocketClient m_discordClient;
 	private readonly RaiderIOClient m_raiderIOClient;
 	private readonly SQLiteConnection m_db;
-	private readonly string m_discordChannel;
+	private readonly CharacterRepository m_characters;
+	private readonly string? m_discordChannel;
 }
