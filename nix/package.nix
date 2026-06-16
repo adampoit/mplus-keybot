@@ -18,7 +18,7 @@ buildDotnetModule {
   executables = ["mplus-keybot"];
 
   dotnet-sdk = dotnetCorePackages.sdk_10_0;
-  dotnet-runtime = dotnetCorePackages.runtime_10_0;
+  dotnet-runtime = dotnetCorePackages.aspnetcore_10_0;
 
   meta = {
     description = "Discord bot that posts Mythic+ updates from Raider.IO";
