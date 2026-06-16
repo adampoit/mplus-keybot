@@ -16,6 +16,8 @@ public sealed class CharacterDungeonAchievementState
 
 	public string DungeonName { get; set; } = null!;
 
+	public string? DungeonShortName { get; set; }
+
 	public int HighestTimedKeyLevelSeen { get; set; }
 
 	public int HighestTimedKeyLevelAnnounced { get; set; }

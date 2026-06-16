@@ -19,6 +19,7 @@ A Discord bot that tracks Mythic+ dungeon runs for your World of Warcraft guild 
 - **Slash command registration** (`/follow`) for Battle.net-verified character management
 - **Automatic polling** of Raider.IO every 5 minutes for runs
 - **SQLite storage** for followed characters and run history—no external database needed
+- **React Router management UI** served by ASP.NET Core, backed by JSON API endpoints
 - **Lightweight**—runs anywhere .NET runs
 
 ## Quick Start
@@ -40,6 +41,7 @@ The bot will create `mplus-data.db` in the working directory.
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- Node.js/npm for building the React web UI
 - Discord bot token (create one at [Discord Developer Portal](https://discord.com/developers/applications))
 - Discord channel where the bot can post messages
 - Battle.net application credentials with the `wow.profile` scope
@@ -101,6 +103,26 @@ dotnet run --Discord:Token=your-token --Discord:Channel=mythic-plus
 ## Local Battle.net testing without Discord
 
 In development, you can omit `Discord:Token` and use `https://localhost:5142/mplus-keybot/dev/follow?discordUserId=dev-user` to create the same short-lived follow flow and complete the real Battle.net sign-in. Configure your Battle.net app with `https://localhost:5142/mplus-keybot/auth/blizzard/callback` as the redirect URI. The Discord/dev follow link is one-time use and expires quickly; the resulting management session lasts 24 hours.
+
+## Local web development
+
+Install frontend dependencies once:
+
+```bash
+npm install
+```
+
+Then run the ASP.NET Core app. `Vite.AspNetCore` starts and proxies the Vite dev server automatically, so this single command gives you TypeScript/CSS hot module reload through the ASP.NET Core site:
+
+```bash
+dotnet watch --project src/mplus-keybot/mplus-keybot.csproj
+```
+
+You can still run `npm run dev` manually when you want to debug Vite directly.
+
+`dotnet build`, `dotnet test`, and `dotnet publish` run `npm run build` automatically when `package.json` is available. Set `SkipNpmBuild=true` if you need to bypass that target.
+
+ASP.NET Core serves the generated Vite bundle from `src/mplus-keybot/web/dist` and uses `Vite.AspNetCore` to resolve hashed production assets from the Vite manifest.
 
 ## Testing
 

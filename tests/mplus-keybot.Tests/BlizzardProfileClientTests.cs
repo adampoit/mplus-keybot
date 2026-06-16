@@ -19,7 +19,8 @@ public sealed class BlizzardProfileClientTests
           "character": {
             "id": 123,
             "name": "Keela",
-            "realm": { "name": "Area 52", "slug": "area-52" }
+            "realm": { "name": "Area 52", "slug": "area-52" },
+            "playable_class": { "name": "Mage" }
           }
         }
       ]
@@ -36,6 +37,7 @@ public sealed class BlizzardProfileClientTests
 		Assert.Equal(CharacterKey.From("us", "area-52", "Keela"), character.Key);
 		Assert.Equal(123, character.BlizzardCharacterId);
 		Assert.Equal("Area 52", character.RealmDisplayName);
+		Assert.Equal("Mage", character.Class);
 		Assert.Equal("Bearer", handler.Request!.Headers.Authorization!.Scheme);
 		Assert.Equal("token", handler.Request.Headers.Authorization.Parameter);
 		Assert.Equal("https://us.api.blizzard.com/profile/user/wow?namespace=profile-us&locale=en_US", handler.Request.RequestUri!.ToString());

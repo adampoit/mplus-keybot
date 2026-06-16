@@ -33,7 +33,8 @@ public sealed record VerifiedCharacter(
 	string Name,
 	long? BlizzardCharacterId = null,
 	string? RealmDisplayName = null,
-	int? Level = null)
+	int? Level = null,
+	string? Class = null)
 {
 	public CharacterKey Key => CharacterKey.From(Region, Realm, Name);
 

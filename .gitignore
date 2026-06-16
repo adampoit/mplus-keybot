@@ -4,6 +4,8 @@ obj/
 *.db-shm
 *.db-wal
 artifacts/
+node_modules/
+src/mplus-keybot/web/dist/
 appsettings.json
 .env
 .DS_Store

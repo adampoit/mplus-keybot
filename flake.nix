@@ -44,6 +44,7 @@
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             dotnetCorePackages.sdk_10_0
+            nodejs_24
             alejandra
           ];
 

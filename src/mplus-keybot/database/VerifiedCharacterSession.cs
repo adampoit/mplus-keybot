@@ -13,5 +13,6 @@ public sealed class VerifiedCharacterSession
 	public string Name { get; set; } = null!;
 	public long? BlizzardCharacterId { get; set; }
 	public string? RealmDisplayName { get; set; }
+	public string? Class { get; set; }
 	public DateTime SeenAt { get; set; }
 }

@@ -64,7 +64,8 @@ public sealed class BlizzardProfileClient : IBlizzardProfileClient
 			character.Name,
 			character.Id,
 			realm?.Name,
-			character.Level);
+			character.Level,
+			character.PlayableClass?.Name);
 	}
 
 	private static IEnumerable<VerifiedCharacter> FindCharacters(JsonElement element, string defaultRegion)
@@ -120,7 +121,11 @@ public sealed class BlizzardProfileClient : IBlizzardProfileClient
 		if (element.TryGetProperty("level", out var levelElement) && levelElement.ValueKind == JsonValueKind.Number && levelElement.TryGetInt32(out var lvl))
 			level = lvl;
 
-		character = new VerifiedCharacter(region, realmSlug, name, characterId, realmDisplayName, level);
+		string? className = null;
+		if (element.TryGetProperty("playable_class", out var classElement) && classElement.ValueKind == JsonValueKind.Object && TryGetString(classElement, "name", out var clsName))
+			className = clsName;
+
+		character = new VerifiedCharacter(region, realmSlug, name, characterId, realmDisplayName, level, className);
 		return true;
 	}
 
@@ -262,6 +267,15 @@ public class BlizzardAccountCharacterDto
 
 	[JsonPropertyName("level")]
 	public int? Level { get; set; }
+
+	[JsonPropertyName("playable_class")]
+	public BlizzardPlayableClassDto? PlayableClass { get; set; }
+}
+
+public sealed class BlizzardPlayableClassDto
+{
+	[JsonPropertyName("name")]
+	public string? Name { get; set; }
 }
 
 public sealed class BlizzardRealmDto

@@ -7,7 +7,25 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UseRidGraph>true</UseRidGraph>
+    <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../'))</RepositoryRoot>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="web\assets\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="web\templates\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="EnsureNodeModules" BeforeTargets="BuildFrontend" Condition="'$(SkipNpmBuild)' != 'true' And Exists('$(RepositoryRoot)package.json') And !Exists('$(RepositoryRoot)node_modules')">
+    <Exec Command="npm ci" WorkingDirectory="$(RepositoryRoot)" />
+  </Target>
+
+  <Target Name="BuildFrontend" BeforeTargets="AssignTargetPaths" Condition="'$(SkipNpmBuild)' != 'true' And Exists('$(RepositoryRoot)package.json')">
+    <Exec Command="npm run build" WorkingDirectory="$(RepositoryRoot)" />
+    <ItemGroup>
+      <None Include="web\dist\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+      <None Include="web\dist\.vite\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -23,6 +41,7 @@
     <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.17.1" />
     <PackageReference Include="Quartz.Extensions.Hosting" Version="3.17.1" />
     <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+    <PackageReference Include="Vite.AspNetCore" Version="2.4.1" />
   </ItemGroup>
 
 </Project>
