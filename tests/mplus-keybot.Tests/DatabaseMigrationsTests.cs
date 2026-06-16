@@ -11,6 +11,70 @@ public sealed class DatabaseMigrationsTests : IDisposable
 		m_db.CreateTable<Character>();
 		m_db.CreateTable<CharacterAchievementState>();
 		m_db.CreateTable<CharacterDungeonAchievementState>();
+		m_db.CreateTable<CharacterRankingAchievementState>();
+	}
+
+	[Fact]
+	public void ExistingCharactersBecomeFollowedWhenFollowStateIsAdded()
+	{
+		var databasePath = Path.Combine(Path.GetTempPath(), $"mplus-keybot-old-schema-{Guid.NewGuid():N}.db");
+		try
+		{
+			using var db = new SQLiteConnection(databasePath);
+			db.Execute("CREATE TABLE Character (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL, Realm TEXT NOT NULL, Region TEXT NOT NULL, ErroringSince TEXT NULL)");
+			db.Execute("INSERT INTO Character (Name, Realm, Region) VALUES (?, ?, ?)", "Aedrastorm", "hyjal", "us");
+
+			DatabaseMigrations.EnsureCharacterFollowColumns(db);
+
+			var character = db.Table<Character>().Single();
+			Assert.True(character.IsFollowed);
+		}
+		finally
+		{
+			File.Delete(databasePath);
+		}
+	}
+
+	[Fact]
+	public void NormalizesLegacyCharacterIdentityAndMergesDuplicates()
+	{
+		var legacy = new Character { Name = "Keela", Realm = "Area 52", Region = "US", IsFollowed = true, LastCheckedAt = DateTime.UtcNow.AddHours(-1), CurrentScore = 2800, CurrentSeason = "season-a" };
+		var canonical = new Character { Name = "Keela", Realm = "area-52", Region = "us", IsFollowed = false, BlizzardCharacterId = 123, RealmDisplayName = "Area 52" };
+		m_db.Insert(legacy);
+		m_db.Insert(canonical);
+		legacy = m_db.Table<Character>().Single(x => x.Realm == "Area 52");
+		canonical = m_db.Table<Character>().Single(x => x.Realm == "area-52");
+
+		m_db.Insert(new CharacterAchievementState { CharacterId = legacy.Id, Season = "season-a", HighestScoreMilestoneAnnounced = 2500 });
+		m_db.Insert(new CharacterAchievementState { CharacterId = canonical.Id, Season = "season-a", HighestScoreMilestoneAnnounced = 2000 });
+		m_db.Insert(new CharacterDungeonAchievementState { CharacterId = legacy.Id, Season = "season-a", DungeonSlug = "windrunner-spire", DungeonName = "Windrunner Spire", HighestTimedKeyLevelSeen = 12, HighestTimedKeyLevelAnnounced = 10 });
+		m_db.Insert(new CharacterDungeonAchievementState { CharacterId = canonical.Id, Season = "season-a", DungeonSlug = "windrunner-spire", DungeonName = "Windrunner Spire", HighestTimedKeyLevelSeen = 15, HighestTimedKeyLevelAnnounced = 14 });
+		m_db.Insert(new CharacterRankingAchievementState { CharacterId = legacy.Id, Season = "season-a", Lane = "all", Category = "world", BestBandAnnounced = 100 });
+		m_db.Insert(new CharacterRankingAchievementState { CharacterId = canonical.Id, Season = "season-a", Lane = "all", Category = "world", BestBandAnnounced = 1000 });
+
+		DatabaseMigrations.EnsureCharacterFollowColumns(m_db);
+
+		var character = m_db.Table<Character>().Single();
+		Assert.Equal("Keela", character.Name);
+		Assert.Equal("area-52", character.Realm);
+		Assert.Equal("us", character.Region);
+		Assert.True(character.IsFollowed);
+		Assert.Equal(123, character.BlizzardCharacterId);
+		Assert.Equal("Area 52", character.RealmDisplayName);
+		Assert.Equal(2800, character.CurrentScore);
+
+		var scoreState = m_db.Table<CharacterAchievementState>().Single();
+		Assert.Equal(character.Id, scoreState.CharacterId);
+		Assert.Equal(2500, scoreState.HighestScoreMilestoneAnnounced);
+
+		var dungeonState = m_db.Table<CharacterDungeonAchievementState>().Single();
+		Assert.Equal(character.Id, dungeonState.CharacterId);
+		Assert.Equal(15, dungeonState.HighestTimedKeyLevelSeen);
+		Assert.Equal(14, dungeonState.HighestTimedKeyLevelAnnounced);
+
+		var rankingState = m_db.Table<CharacterRankingAchievementState>().Single();
+		Assert.Equal(character.Id, rankingState.CharacterId);
+		Assert.Equal(100, rankingState.BestBandAnnounced);
 	}
 
 	[Fact]

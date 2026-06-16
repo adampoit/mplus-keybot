@@ -5,3 +5,6 @@ obj/
 *.db-wal
 artifacts/
 appsettings.json
+.env
+.DS_Store
+.playwright-cli
