@@ -2,7 +2,7 @@ using Discord;
 
 public static class RunAnnouncementFormatter
 {
-	public static Embed BuildEmbed(MythicPlusRunAnnouncement announcement)
+	public static Embed BuildEmbed(MythicPlusRunAnnouncement announcement, string pageUrl)
 	{
 		var percentage = (double)announcement.ClearTimeMs / announcement.KeystoneTimeMs;
 		var percentageString = percentage < 1 ? $"{1 - percentage:P1} remaining" : $"{percentage - 1:P1} over";
@@ -24,7 +24,7 @@ public static class RunAnnouncementFormatter
 		var color = announcement.ClearTimeMs <= announcement.KeystoneTimeMs ? Color.Gold : Color.Red;
 
 		return new EmbedBuilder()
-			.WithFooter(footer => footer.Text = "Data provided by Raider.IO")
+			.WithFooter(footer => footer.Text = DiscordEmbedDefaults.GetFooterText(pageUrl))
 			.WithTitle($"+{announcement.KeyLevel} {announcement.Dungeon.Name}")
 			.WithColor(color)
 			.WithDescription(description)

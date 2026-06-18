@@ -11,13 +11,21 @@ public sealed class CheckRunsJob : IJob
 	public const string JobName = "CheckRunsJob";
 	public const string RecurringTriggerName = "Every 5 Minutes";
 
-	public CheckRunsJob(ILogger<CheckRunsJob> logger, DiscordSocketClient discordClient, RaiderIOClient raiderIOClient, SQLiteConnection db, CharacterRepository characters, IConfiguration config)
+	public CheckRunsJob(
+		ILogger<CheckRunsJob> logger,
+		DiscordSocketClient discordClient,
+		RaiderIOClient raiderIOClient,
+		SQLiteConnection db,
+		CharacterRepository characters,
+		IConfiguration config,
+		WebUrlBuilder urls)
 	{
 		m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
 		m_raiderIOClient = raiderIOClient ?? throw new ArgumentNullException(nameof(raiderIOClient));
 		m_db = db ?? throw new ArgumentNullException(nameof(db));
 		m_characters = characters ?? throw new ArgumentNullException(nameof(characters));
+		m_urls = urls ?? throw new ArgumentNullException(nameof(urls));
 		m_discordChannel = config["Discord:Channel"];
 	}
 
@@ -85,7 +93,7 @@ public sealed class CheckRunsJob : IJob
 					keystoneRun,
 					personalBestAchievements.Select(x => x.CharacterName),
 					seasonHighAchievements.Select(x => x.CharacterName));
-				var embed = RunAnnouncementFormatter.BuildEmbed(announcement);
+				var embed = RunAnnouncementFormatter.BuildEmbed(announcement, m_urls.PublicBaseUrl);
 
 				await channel.SendMessageAsync(embed: embed).ConfigureAwait(false);
 			}
@@ -126,7 +134,7 @@ public sealed class CheckRunsJob : IJob
 		if (scoreMilestone is not null)
 		{
 			var embed = new EmbedBuilder()
-				.WithFooter(footer => footer.Text = "Data provided by Raider.IO")
+				.WithDefaultFooter(m_urls)
 				.WithTitle($"🌟 {scoreMilestone.Name}")
 				.WithColor(Color.Gold)
 				.WithDescription($"{character.Name} crossed **{scoreMilestone.Score} Mythic+ rating**.")
@@ -148,7 +156,7 @@ public sealed class CheckRunsJob : IJob
 				continue;
 
 			var embed = new EmbedBuilder()
-				.WithFooter(footer => footer.Text = "Data provided by Raider.IO")
+				.WithDefaultFooter(m_urls)
 				.WithTitle($"👑 {AchievementRules.FormatLane(lane)} Ranking")
 				.WithColor(Color.Gold)
 				.WithDescription($"{character.Name} entered the **Top {band.Value} {AchievementRules.FormatLane(lane)} {AchievementRules.FormatRankCategory(category, categoryLabel)}** rankings.")
@@ -240,5 +248,6 @@ public sealed class CheckRunsJob : IJob
 	private readonly RaiderIOClient m_raiderIOClient;
 	private readonly SQLiteConnection m_db;
 	private readonly CharacterRepository m_characters;
+	private readonly WebUrlBuilder m_urls;
 	private readonly string? m_discordChannel;
 }

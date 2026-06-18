@@ -258,7 +258,7 @@ public static class FollowWebRoutes
 		var maxLevel = verifiedCharacters.Count == 0 ? 0 : verifiedCharacters.Max(x => x.Level) ?? 0;
 		var followedCharacters = result.Followed.Select(key => verifiedCharacters.First(character => character.Key == key)).ToList();
 		var unfollowedCharacters = result.Unfollowed.Select(key => verifiedCharacters.First(character => character.Key == key)).ToList();
-		await followAnnouncer.AnnounceCharactersFollowedAsync(followedCharacters, context.RequestAborted).ConfigureAwait(false);
+		await followAnnouncer.AnnounceCharactersFollowedAsync(session.DiscordUserId, followedCharacters, context.RequestAborted).ConfigureAwait(false);
 
 		return Results.Json(new SaveCharactersResponse(
 			followedCharacters.Select(character => ToSavedCharacterDto(character, maxLevel)).ToList(),

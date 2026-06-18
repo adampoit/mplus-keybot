@@ -67,6 +67,7 @@ public sealed class CharacterManagementE2ETests
 		Assert.True(app.Repository.GetCharacter(characters[1].Key)!.IsFollowed);
 		Assert.Null(app.Repository.GetCharacter(characters[2].Key));
 		var announced = Assert.Single(app.FollowAnnouncer.Announcements);
+		Assert.Equal("discord-e2e", announced.DiscordUserId);
 		var announcedCharacter = Assert.Single(announced.Characters);
 		Assert.Equal(characters[1].Key, announcedCharacter.Key);
 		Assert.Equal(characters[1].RealmDisplayName, announcedCharacter.RealmDisplayName);
@@ -109,8 +110,16 @@ public sealed class CharacterManagementE2ETests
 		Assert.True(app.Repository.GetCharacter(characters[1].Key)!.IsFollowed);
 		Assert.Collection(
 			app.FollowAnnouncer.Announcements,
-			announcement => Assert.Equal(characters[0].Key, Assert.Single(announcement.Characters).Key),
-			announcement => Assert.Equal(characters[1].Key, Assert.Single(announcement.Characters).Key));
+			announcement =>
+			{
+				Assert.Equal("discord-e2e", announcement.DiscordUserId);
+				Assert.Equal(characters[0].Key, Assert.Single(announcement.Characters).Key);
+			},
+			announcement =>
+			{
+				Assert.Equal("discord-e2e", announcement.DiscordUserId);
+				Assert.Equal(characters[1].Key, Assert.Single(announcement.Characters).Key);
+			});
 	}
 
 	[PlaywrightE2EFact]
@@ -359,13 +368,13 @@ public sealed class CharacterManagementE2ETests
 	{
 		public List<Announcement> Announcements { get; } = [];
 
-		public Task AnnounceCharactersFollowedAsync(IReadOnlyList<VerifiedCharacter> characters, CancellationToken cancellationToken = default)
+		public Task AnnounceCharactersFollowedAsync(string discordUserId, IReadOnlyList<VerifiedCharacter> characters, CancellationToken cancellationToken = default)
 		{
-			Announcements.Add(new Announcement(characters.ToList()));
+			Announcements.Add(new Announcement(discordUserId, characters.ToList()));
 			return Task.CompletedTask;
 		}
 
-		public sealed record Announcement(IReadOnlyList<VerifiedCharacter> Characters);
+		public sealed record Announcement(string DiscordUserId, IReadOnlyList<VerifiedCharacter> Characters);
 	}
 
 	private sealed class TestAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>

@@ -5,6 +5,8 @@ namespace mplus_keybot.Tests;
 
 public sealed class RunAnnouncementFormatterTests
 {
+	private const string PageUrl = "https://mplus-keybot.example";
+
 	[Fact]
 	public void BuildsRunEmbedWithPersonalBestAchievements()
 	{
@@ -14,7 +16,7 @@ public sealed class RunAnnouncementFormatterTests
 			["Soryan", "Aedrastorm"],
 			[]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
 
 		Assert.EndsWith($"{Environment.NewLine}{Environment.NewLine}🏆 New personal best: Aedrastorm, Soryan", embed.Description);
 	}
@@ -28,7 +30,7 @@ public sealed class RunAnnouncementFormatterTests
 			[],
 			["Soryan"]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
 
 		Assert.EndsWith($"{Environment.NewLine}{Environment.NewLine}🔥 First +16 this season: Soryan", embed.Description);
 	}
@@ -42,7 +44,7 @@ public sealed class RunAnnouncementFormatterTests
 			["Soryan", "Aedrastorm"],
 			["Soryan"]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
 
 		Assert.EndsWith($"{Environment.NewLine}{Environment.NewLine}🏆 New personal best: Aedrastorm, Soryan{Environment.NewLine}🔥 First +16 this season: Soryan", embed.Description);
 	}
@@ -57,13 +59,13 @@ public sealed class RunAnnouncementFormatterTests
 			["Soryan", "Aedrastorm"],
 			["Soryan"]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
 		var remainingPercentage = FormatPercentage(1 - (double)run.Clear_Time_Ms / run.Keystone_Time_Ms);
 
 		Assert.Equal("+16 Magisters' Terrace", embed.Title);
 		Assert.Equal("https://raider.io/mythic-plus-runs/season-mn-1/12345-16-magisters-terrace", embed.Url);
 		Assert.Equal("https://cdnassets.raider.io/images/dungeons/expansion11/base/magisters-terrace.jpg", embed.Image?.Url);
-		Assert.Equal("Data provided by Raider.IO", embed.Footer?.Text);
+		Assert.Equal("mplus-keybot.example | Data from Raider.IO", embed.Footer?.Text);
 		Assert.Equal(Color.Gold, embed.Color);
 		Assert.Equal(new DateTimeOffset(2026, 6, 10, 21, 37, 0, TimeSpan.Zero), embed.Timestamp);
 		Assert.Equal($"Cleared in 29:10 of 34:00 ({remainingPercentage} remaining).{Environment.NewLine}{Environment.NewLine}🛡️ [Soryan](https://raider.io/characters/us/hyjal/Soryan) - **Tank** (Brewmaster Monk) - 3214 Score{Environment.NewLine}💉 [Aedrastorm](https://raider.io/characters/us/hyjal/Aedrastorm) - **Healer** (Restoration Shaman) - 3382 Score{Environment.NewLine}{Environment.NewLine}🏆 New personal best: Aedrastorm, Soryan{Environment.NewLine}🔥 First +16 this season: Soryan", embed.Description);
@@ -80,7 +82,7 @@ public sealed class RunAnnouncementFormatterTests
 			[],
 			[]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
 		var overPercentage = FormatPercentage((double)depletedRun.Clear_Time_Ms / depletedRun.Keystone_Time_Ms - 1);
 
 		Assert.Equal(Color.Red, embed.Color);

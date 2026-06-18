@@ -51,6 +51,10 @@ public sealed class DiscordBotHostedService : IHostedService
 	private async Task ReadyAsync()
 	{
 		var guild = m_discordClient.Guilds.Single();
+		var helpCommand = new SlashCommandBuilder()
+			.WithName("help")
+			.WithDescription("Show M+ Keybot commands and links.")
+			.Build();
 		var followCommand = new SlashCommandBuilder()
 			.WithName("follow")
 			.WithDescription("Follow or unfollow your Battle.net-verified World of Warcraft characters.")
@@ -58,20 +62,26 @@ public sealed class DiscordBotHostedService : IHostedService
 
 		try
 		{
-			await guild.BulkOverwriteApplicationCommandAsync([followCommand]).ConfigureAwait(false);
+			await guild.BulkOverwriteApplicationCommandAsync([helpCommand, followCommand]).ConfigureAwait(false);
 		}
 		catch (HttpException exception)
 		{
 			var json = JsonConvert.SerializeObject(exception.Errors, Formatting.Indented);
 			m_logger.LogError("{DiscordCommandError}", json);
 		}
+
+		await m_discordClient.SetGameAsync("/help · 🐉 tracking dungeon adventures", type: ActivityType.CustomStatus).ConfigureAwait(false);
 	}
 
-	private async Task SlashCommandExecutedAsync(SocketSlashCommand command)
+	private Task SlashCommandExecutedAsync(SocketSlashCommand command) => command.Data.Name switch
 	{
-		if (command.Data.Name != "follow")
-			throw new InvalidOperationException($"Unknown slash command {command.Data.Name}!");
+		"help" => HandleHelpCommandAsync(command),
+		"follow" => HandleFollowCommandAsync(command),
+		_ => throw new InvalidOperationException($"Unknown slash command {command.Data.Name}!")
+	};
 
+	private async Task HandleFollowCommandAsync(SocketSlashCommand command)
+	{
 		var state = m_followFlowStates.Create(command.User.Id.ToString(), TimeSpan.FromMinutes(10));
 		var url = m_urls.BuildPublicUrl("/follow/start", ("state", state.State));
 		var components = new ComponentBuilder()
@@ -82,6 +92,23 @@ public sealed class DiscordBotHostedService : IHostedService
 			"Use this short-lived Battle.net sign-in link to manage followed characters.",
 			components: components,
 			ephemeral: true).ConfigureAwait(false);
+	}
+
+	private async Task HandleHelpCommandAsync(SocketSlashCommand command)
+	{
+		var embed = new EmbedBuilder()
+			.WithDefaultFooter(m_urls)
+			.WithTitle("M+ Keybot help")
+			.WithColor(Color.Blue)
+			.WithDescription("Follow Battle.net-verified World of Warcraft characters and announce their Mythic+ runs in Discord.")
+			.AddField("/follow", "Sign in with Battle.net to choose which of your characters this server follows.")
+			.AddField("Run announcements", "Followed Mythic+ runs are announced with Raider.IO data, party details, and achievement callouts.")
+			.Build();
+		var components = new ComponentBuilder()
+			.WithButton("Open website", style: ButtonStyle.Link, url: m_urls.PublicBaseUrl)
+			.Build();
+
+		await command.RespondAsync(embed: embed, components: components, ephemeral: true).ConfigureAwait(false);
 	}
 
 	private readonly DiscordSocketClient m_discordClient;

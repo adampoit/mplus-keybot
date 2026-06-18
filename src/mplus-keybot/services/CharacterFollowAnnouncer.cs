@@ -5,19 +5,20 @@ using Microsoft.Extensions.Logging;
 
 public interface ICharacterFollowAnnouncer
 {
-	Task AnnounceCharactersFollowedAsync(IReadOnlyList<VerifiedCharacter> characters, CancellationToken cancellationToken = default);
+	Task AnnounceCharactersFollowedAsync(string discordUserId, IReadOnlyList<VerifiedCharacter> characters, CancellationToken cancellationToken = default);
 }
 
 public sealed class DiscordCharacterFollowAnnouncer : ICharacterFollowAnnouncer
 {
-	public DiscordCharacterFollowAnnouncer(DiscordSocketClient discordClient, IConfiguration config, ILogger<DiscordCharacterFollowAnnouncer> logger)
+	public DiscordCharacterFollowAnnouncer(DiscordSocketClient discordClient, IConfiguration config, ILogger<DiscordCharacterFollowAnnouncer> logger, WebUrlBuilder urls)
 	{
 		m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
 		m_config = config ?? throw new ArgumentNullException(nameof(config));
 		m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		m_urls = urls ?? throw new ArgumentNullException(nameof(urls));
 	}
 
-	public async Task AnnounceCharactersFollowedAsync(IReadOnlyList<VerifiedCharacter> characters, CancellationToken cancellationToken = default)
+	public async Task AnnounceCharactersFollowedAsync(string discordUserId, IReadOnlyList<VerifiedCharacter> characters, CancellationToken cancellationToken = default)
 	{
 		if (characters.Count == 0)
 			return;
@@ -34,7 +35,8 @@ public sealed class DiscordCharacterFollowAnnouncer : ICharacterFollowAnnouncer
 			foreach (var character in characters)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
-				await channel.SendMessageAsync($"Now following {character.Name} on {FormatRealmRegion(character)}!").ConfigureAwait(false);
+				var embed = BuildFollowEmbed(discordUserId, character);
+				await channel.SendMessageAsync(embed: embed).ConfigureAwait(false);
 			}
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException)
@@ -53,13 +55,11 @@ public sealed class DiscordCharacterFollowAnnouncer : ICharacterFollowAnnouncer
 		return guild?.Channels.SingleOrDefault(c => c.Name == configuredChannelName) as IMessageChannel;
 	}
 
-	private static string FormatRealmRegion(VerifiedCharacter character)
-	{
-		var realm = character.RealmDisplayName ?? character.Key.Realm;
-		return $"{realm}-{character.Key.Region}";
-	}
+	private Embed BuildFollowEmbed(string discordUserId, VerifiedCharacter character) =>
+		CharacterFollowAnnouncementFormatter.BuildEmbed(discordUserId, character, m_urls.PublicBaseUrl);
 
 	private readonly DiscordSocketClient m_discordClient;
 	private readonly IConfiguration m_config;
 	private readonly ILogger<DiscordCharacterFollowAnnouncer> m_logger;
+	private readonly WebUrlBuilder m_urls;
 }
