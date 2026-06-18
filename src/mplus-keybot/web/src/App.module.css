@@ -1,0 +1,19 @@
+.mainContent {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  width: 100%;
+  flex: 1;
+}
+
+.footer {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  text-align: center;
+  flex-shrink: 0;
+  width: 100%;
+}

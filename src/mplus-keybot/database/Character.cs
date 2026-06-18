@@ -19,6 +19,7 @@ public sealed class Character
 	public DateTime? LastCheckedAt { get; set; }
 	public double CurrentScore { get; set; }
 	public string? CurrentSeason { get; set; }
+	public string? Class { get; set; }
 
 	public string? RenderUrl => BlizzardCharacterId is { } id
 		? $"https://render.worldofwarcraft.com/{Region.ToLowerInvariant()}/character/{Realm}/{id % 256}/{id}-avatar.jpg"

@@ -4,6 +4,8 @@ public static class DatabaseMigrations
 {
 	public static async Task RunAsync(SQLiteConnection db, RaiderIOClient raiderIOClient)
 	{
+		EnsureDungeonShortNameColumn(db);
+
 		const string addCharacterFollowStateMigration = "2026-06-13-add-character-follow-state";
 		if (!db.Table<DatabaseMigration>().Any(x => x.Name == addCharacterFollowStateMigration))
 		{
@@ -13,6 +15,18 @@ public static class DatabaseMigrations
 		else
 		{
 			EnsureCharacterFollowColumns(db);
+		}
+
+		const string addDungeonShortNameMigration = "2026-06-17-add-dungeon-short-name";
+		if (!db.Table<DatabaseMigration>().Any(x => x.Name == addDungeonShortNameMigration))
+		{
+			EnsureDungeonShortNameColumn(db);
+			await SeedDungeonAchievementStateForExistingCharactersAsync(db, raiderIOClient).ConfigureAwait(false);
+			db.Insert(new DatabaseMigration { Name = addDungeonShortNameMigration, AppliedAt = DateTime.UtcNow });
+		}
+		else
+		{
+			EnsureDungeonShortNameColumn(db);
 		}
 
 		const string seedExistingAchievementStateMigration = "2026-05-16-seed-existing-achievement-state";
@@ -56,6 +70,9 @@ public static class DatabaseMigrations
 			AddColumnIfMissing(db, "Character", "LastCheckedAt", "TEXT NULL");
 			AddColumnIfMissing(db, "Character", "CurrentScore", "REAL NOT NULL DEFAULT 0");
 			AddColumnIfMissing(db, "Character", "CurrentSeason", "TEXT NULL");
+			AddColumnIfMissing(db, "Character", "Class", "TEXT NULL");
+			if (TableExists(db, "VerifiedCharacterSession"))
+				AddColumnIfMissing(db, "VerifiedCharacterSession", "Class", "TEXT NULL");
 			db.Insert(new DatabaseMigration { Name = addCharacterTrackingMigration, AppliedAt = DateTime.UtcNow });
 		}
 		else
@@ -63,11 +80,15 @@ public static class DatabaseMigrations
 			AddColumnIfMissing(db, "Character", "LastCheckedAt", "TEXT NULL");
 			AddColumnIfMissing(db, "Character", "CurrentScore", "REAL NOT NULL DEFAULT 0");
 			AddColumnIfMissing(db, "Character", "CurrentSeason", "TEXT NULL");
+			AddColumnIfMissing(db, "Character", "Class", "TEXT NULL");
+			if (TableExists(db, "VerifiedCharacterSession"))
+				AddColumnIfMissing(db, "VerifiedCharacterSession", "Class", "TEXT NULL");
 		}
 	}
 
 	public static void EnsureCharacterFollowColumns(SQLiteConnection db)
 	{
+		EnsureDungeonShortNameColumn(db);
 		AddColumnIfMissing(db, "Character", "IsFollowed", "INTEGER NOT NULL DEFAULT 1");
 		AddColumnIfMissing(db, "Character", "LastVerifiedAt", "TEXT NULL");
 		AddColumnIfMissing(db, "Character", "LastManagedByDiscordUserId", "TEXT NULL");
@@ -76,6 +97,9 @@ public static class DatabaseMigrations
 		AddColumnIfMissing(db, "Character", "LastCheckedAt", "TEXT NULL");
 		AddColumnIfMissing(db, "Character", "CurrentScore", "REAL NOT NULL DEFAULT 0");
 		AddColumnIfMissing(db, "Character", "CurrentSeason", "TEXT NULL");
+		AddColumnIfMissing(db, "Character", "Class", "TEXT NULL");
+		if (TableExists(db, "VerifiedCharacterSession"))
+			AddColumnIfMissing(db, "VerifiedCharacterSession", "Class", "TEXT NULL");
 		db.Execute("UPDATE Character SET IsFollowed = 1 WHERE IsFollowed IS NULL");
 		NormalizeCharacterIdentities(db);
 	}
@@ -154,6 +178,7 @@ public static class DatabaseMigrations
 					Season = season,
 					DungeonSlug = dungeonBest.DungeonSlug,
 					DungeonName = dungeonBest.Dungeon,
+					DungeonShortName = dungeonBest.Short_Name,
 					HighestTimedKeyLevelSeen = dungeonBest.Mythic_Level,
 					HighestTimedKeyLevelAnnounced = dungeonBest.Mythic_Level,
 				});
@@ -161,6 +186,7 @@ public static class DatabaseMigrations
 			else
 			{
 				state.DungeonName = dungeonBest.Dungeon;
+				state.DungeonShortName = dungeonBest.Short_Name ?? state.DungeonShortName;
 				state.HighestTimedKeyLevelSeen = Math.Max(state.HighestTimedKeyLevelSeen, dungeonBest.Mythic_Level);
 				state.HighestTimedKeyLevelAnnounced = Math.Max(state.HighestTimedKeyLevelAnnounced, dungeonBest.Mythic_Level);
 				db.Update(state);
@@ -222,6 +248,7 @@ public static class DatabaseMigrations
 		{
 			target.CurrentScore = source.CurrentScore;
 			target.CurrentSeason = source.CurrentSeason ?? target.CurrentSeason;
+			target.Class = source.Class ?? target.Class;
 		}
 	}
 
@@ -279,6 +306,7 @@ public static class DatabaseMigrations
 			}
 
 			target.DungeonName = string.IsNullOrWhiteSpace(target.DungeonName) ? source.DungeonName : target.DungeonName;
+			target.DungeonShortName = string.IsNullOrWhiteSpace(target.DungeonShortName) ? source.DungeonShortName : target.DungeonShortName;
 			target.HighestTimedKeyLevelSeen = Math.Max(target.HighestTimedKeyLevelSeen, source.HighestTimedKeyLevelSeen);
 			target.HighestTimedKeyLevelAnnounced = Math.Max(target.HighestTimedKeyLevelAnnounced, source.HighestTimedKeyLevelAnnounced);
 			db.Update(target);
@@ -333,6 +361,12 @@ public static class DatabaseMigrations
 			x.NameKey == y.NameKey;
 
 		public int GetHashCode(NormalizedCharacterIdentity obj) => HashCode.Combine(obj.Region, obj.Realm, obj.NameKey);
+	}
+
+	private static void EnsureDungeonShortNameColumn(SQLiteConnection db)
+	{
+		if (TableExists(db, "CharacterDungeonAchievementState"))
+			AddColumnIfMissing(db, "CharacterDungeonAchievementState", "DungeonShortName", "TEXT NULL");
 	}
 
 	private static void AddColumnIfMissing(SQLiteConnection db, string tableName, string columnName, string columnDefinition)

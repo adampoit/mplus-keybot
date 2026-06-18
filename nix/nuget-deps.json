@@ -153,5 +153,10 @@
     "pname": "System.IdentityModel.Tokens.Jwt",
     "version": "8.0.1",
     "hash": "sha256-hW4f9zWs0afxPbcMqCA/FAGvBZbBFSkugIOurswomHg="
+  },
+  {
+    "pname": "Vite.AspNetCore",
+    "version": "2.4.1",
+    "hash": "sha256-t2A93YUFbOlQbxodj3spHWlSwWUNWCz2ZBDEQcsBBqk="
   }
 ]

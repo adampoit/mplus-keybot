@@ -2,6 +2,7 @@ using Discord.WebSocket;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,11 +10,16 @@ using Microsoft.Extensions.Logging;
 using Quartz;
 using Quartz.Logging;
 using SQLite;
+using Vite.AspNetCore;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 LogProvider.SetCurrentLogProvider(new ConsoleLogProvider());
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+	Args = args,
+	WebRootPath = WebAssetPaths.GetDistDirectory(Directory.GetCurrentDirectory()),
+});
 builder.Host.UseSystemd();
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", Microsoft.Extensions.Logging.LogLevel.Warning);
 builder.Logging.AddFilter("Microsoft.AspNetCore.Http.Result.RedirectResult", Microsoft.Extensions.Logging.LogLevel.Warning);
@@ -75,12 +81,19 @@ builder.Services
 	})
 	.AddOpenIdConnect("Blizzard", options =>
 	{
+		var urls = new WebUrlBuilder(builder.Configuration);
 		options.Authority = "https://oauth.battle.net";
 		options.MetadataAddress = "https://oauth.battle.net/.well-known/openid-configuration";
 		options.ClientId = builder.Configuration["Blizzard:ClientId"] ?? string.Empty;
 		options.ClientSecret = builder.Configuration["Blizzard:ClientSecret"] ?? string.Empty;
 		options.ResponseType = OpenIdConnectResponseType.Code;
 		options.CallbackPath = "/auth/blizzard/callback";
+		options.CorrelationCookie.Path = urls.CookiePath;
+		options.CorrelationCookie.SameSite = SameSiteMode.None;
+		options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+		options.NonceCookie.Path = urls.CookiePath;
+		options.NonceCookie.SameSite = SameSiteMode.None;
+		options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
 		options.SaveTokens = true;
 		options.GetClaimsFromUserInfoEndpoint = false;
 		options.Scope.Clear();
@@ -105,6 +118,13 @@ builder.Services
 		};
 	});
 builder.Services.AddAuthorization();
+builder.Services.AddViteServices(options =>
+{
+	options.Server.AutoRun = true;
+	options.Server.PackageDirectory = FindPackageDirectory(builder.Environment.ContentRootPath);
+	options.Server.PackageManager = "npm";
+	options.Server.ScriptName = "dev";
+});
 
 builder.Services.AddQuartz(q =>
 {
@@ -131,9 +151,20 @@ builder.Services.AddQuartzHostedService(opt =>
 });
 
 var app = builder.Build();
+WebAssetPaths.Configure(app.Environment);
 var webUrls = app.Services.GetRequiredService<WebUrlBuilder>();
-if (!string.IsNullOrWhiteSpace(webUrls.PathBase))
-	app.UsePathBase(webUrls.PathBase);
+var requestPathBase = !string.IsNullOrWhiteSpace(webUrls.PathBase)
+	? webUrls.PathBase
+	: webUrls.CookiePath == "/" ? string.Empty : webUrls.CookiePath;
+if (!string.IsNullOrWhiteSpace(requestPathBase))
+	app.UsePathBase(requestPathBase);
+app.UseRouting();
+
+if (app.Environment.IsDevelopment())
+{
+	app.UseWebSockets();
+	app.UseViteDevelopmentServer(useMiddleware: false);
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -144,6 +175,24 @@ var raiderIOClient = app.Services.GetRequiredService<RaiderIOClient>();
 await DatabaseMigrations.RunAsync(db, raiderIOClient).ConfigureAwait(false);
 
 await app.RunAsync().ConfigureAwait(false);
+
+static string FindPackageDirectory(string contentRootPath)
+{
+	var candidates = new[]
+	{
+		contentRootPath,
+		Path.Combine(contentRootPath, "..", ".."),
+		Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."),
+	};
+
+	foreach (var candidate in candidates.Select(Path.GetFullPath))
+	{
+		if (File.Exists(Path.Combine(candidate, "package.json")))
+			return candidate;
+	}
+
+	return contentRootPath;
+}
 
 sealed class ConsoleLogProvider : ILogProvider
 {

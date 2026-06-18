@@ -36,6 +36,27 @@ public sealed class DatabaseMigrationsTests : IDisposable
 	}
 
 	[Fact]
+	public void AddsClassColumnToOldSchema()
+	{
+		var databasePath = Path.Combine(Path.GetTempPath(), $"mplus-keybot-old-schema-{Guid.NewGuid():N}.db");
+		try
+		{
+			using var db = new SQLiteConnection(databasePath);
+			db.Execute("CREATE TABLE Character (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL, Realm TEXT NOT NULL, Region TEXT NOT NULL, ErroringSince TEXT NULL)");
+			db.Execute("INSERT INTO Character (Name, Realm, Region) VALUES (?, ?, ?)", "Aedrastorm", "hyjal", "us");
+
+			DatabaseMigrations.EnsureCharacterFollowColumns(db);
+
+			var character = db.Table<Character>().Single();
+			Assert.Null(character.Class);
+		}
+		finally
+		{
+			File.Delete(databasePath);
+		}
+	}
+
+	[Fact]
 	public void NormalizesLegacyCharacterIdentityAndMergesDuplicates()
 	{
 		var legacy = new Character { Name = "Keela", Realm = "Area 52", Region = "US", IsFollowed = true, LastCheckedAt = DateTime.UtcNow.AddHours(-1), CurrentScore = 2800, CurrentSeason = "season-a" };
@@ -106,6 +127,7 @@ public sealed class DatabaseMigrationsTests : IDisposable
 		});
 
 		var state = m_db.Table<CharacterDungeonAchievementState>().Single(x => x.DungeonSlug == "windrunner-spire");
+		Assert.Equal("WS", state.DungeonShortName);
 		Assert.Equal(15, state.HighestTimedKeyLevelSeen);
 		Assert.Equal(15, state.HighestTimedKeyLevelAnnounced);
 	}
@@ -119,6 +141,7 @@ public sealed class DatabaseMigrationsTests : IDisposable
 	private static MythicPlusProfileRunDto CreateProfileRun(string dungeon, int level, string url) => new()
 	{
 		Dungeon = dungeon,
+		Short_Name = "WS",
 		Mythic_Level = level,
 		Clear_Time_Ms = 1,
 		Par_Time_Ms = 2,

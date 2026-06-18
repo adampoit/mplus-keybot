@@ -57,6 +57,7 @@ public sealed class CheckRunsJob : IJob
 			character.LastCheckedAt = DateTime.UtcNow;
 			character.CurrentScore = profile.Result!.CurrentMythicPlusScore;
 			character.CurrentSeason = profile.Result!.CurrentMythicPlusSeason;
+			character.Class = profile.Result!.Class ?? character.Class;
 			m_db.Update(character);
 			characterProfiles[character.Id] = profile.Result!;
 
@@ -92,6 +93,7 @@ public sealed class CheckRunsJob : IJob
 			foreach (var achievement in personalBestAchievements)
 			{
 				achievement.State.DungeonName = keystoneRun.Dungeon.Name;
+				achievement.State.DungeonShortName = keystoneRun.Dungeon.Short_Name ?? achievement.State.DungeonShortName;
 				achievement.State.HighestTimedKeyLevelSeen = keystoneRun.Mythic_Level;
 				if (channel is not null)
 					achievement.State.HighestTimedKeyLevelAnnounced = keystoneRun.Mythic_Level;
@@ -213,7 +215,7 @@ public sealed class CheckRunsJob : IJob
 		if (state is not null)
 			return state;
 
-		state = new CharacterDungeonAchievementState { CharacterId = character.Id, Season = season, DungeonSlug = dungeon.Slug, DungeonName = dungeon.Name };
+		state = new CharacterDungeonAchievementState { CharacterId = character.Id, Season = season, DungeonSlug = dungeon.Slug, DungeonName = dungeon.Name, DungeonShortName = dungeon.Short_Name };
 		m_db.Insert(state);
 		return state;
 	}

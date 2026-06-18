@@ -68,6 +68,7 @@ public sealed class CharacterRepository
 			character.LastManagedByDiscordUserId = discordUserId;
 			character.BlizzardCharacterId = verifiedCharacter.BlizzardCharacterId ?? character.BlizzardCharacterId;
 			character.RealmDisplayName = verifiedCharacter.RealmDisplayName ?? character.RealmDisplayName;
+			character.Class = verifiedCharacter.Class ?? character.Class;
 			m_db.Update(character);
 			return character;
 		}
@@ -86,6 +87,7 @@ public sealed class CharacterRepository
 			character.LastManagedByDiscordUserId = discordUserId;
 			character.BlizzardCharacterId = verifiedCharacter.BlizzardCharacterId ?? character.BlizzardCharacterId;
 			character.RealmDisplayName = verifiedCharacter.RealmDisplayName ?? character.RealmDisplayName;
+			character.Class = verifiedCharacter.Class ?? character.Class;
 			m_db.Update(character);
 			return character;
 		}
@@ -105,6 +107,7 @@ public sealed class CharacterRepository
 				Name = character.Key.Name,
 				BlizzardCharacterId = character.BlizzardCharacterId,
 				RealmDisplayName = character.RealmDisplayName,
+				Class = character.Class,
 				SeenAt = seenAt,
 			}));
 			m_db.Execute("DELETE FROM VerifiedCharacterSession WHERE SeenAt < ?", DateTime.UtcNow - TimeSpan.FromHours(1));
@@ -119,7 +122,7 @@ public sealed class CharacterRepository
 			return m_db.Table<VerifiedCharacterSession>()
 				.Where(x => x.SessionId == sessionId && x.VerificationSetId == verificationSetId && x.SeenAt >= cutoff)
 				.ToList()
-				.Select(x => new VerifiedCharacter(x.Region, x.Realm, x.Name, x.BlizzardCharacterId, x.RealmDisplayName))
+				.Select(x => new VerifiedCharacter(x.Region, x.Realm, x.Name, x.BlizzardCharacterId, x.RealmDisplayName, null, x.Class))
 				.ToList();
 		}
 	}

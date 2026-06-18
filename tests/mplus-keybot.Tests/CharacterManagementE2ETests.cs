@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
 using SQLite;
+using Vite.AspNetCore;
 
 namespace mplus_keybot.Tests;
 
@@ -72,7 +73,48 @@ public sealed class CharacterManagementE2ETests
 	}
 
 	[PlaywrightE2EFact]
-	public async Task HomePageShowsFollowedAndReadonlyVerifiedCharacters()
+	public async Task CharacterPickerCanContinueManagingAndSaveAgainAfterConfirmation()
+	{
+		var characters = new[]
+		{
+			new VerifiedCharacter("us", "Hyjal", "Keela", 101, "Hyjal", 80),
+			new VerifiedCharacter("us", "Area 52", "Newmage", 202, "Area 52", 70),
+		};
+		await using var app = await CharacterManagementTestApp.StartAsync(characters);
+		await using var browser = await LaunchChromiumAsync();
+		await using var context = await browser.Browser.NewContextAsync(new() { BaseURL = app.BaseUrl });
+		var page = await context.NewPageAsync();
+
+		await page.GotoAsync("/follow/characters");
+		await page.Locator(".character-card[data-name='Keela']").ClickAsync();
+		await page.GetByRole(AriaRole.Button, new() { Name = "Save Follow Settings" }).ClickAsync();
+
+		await Expect(page.GetByText("Settings saved!")).ToBeVisibleAsync();
+		await Expect(page.GetByText("Now Followed")).ToBeVisibleAsync();
+		await Expect(page.GetByText("Keela")).ToBeVisibleAsync();
+
+		await page.GetByRole(AriaRole.Button, new() { Name = "Continue managing characters" }).ClickAsync();
+
+		await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Manage Characters" })).ToBeVisibleAsync();
+		await Expect(page.Locator(".character-card[data-name='Keela'] input")).ToBeCheckedAsync();
+		await Expect(page.Locator(".character-card[data-name='Newmage'] input")).Not.ToBeCheckedAsync();
+
+		await page.Locator(".character-card[data-name='Newmage']").ClickAsync();
+		await page.GetByRole(AriaRole.Button, new() { Name = "Save Follow Settings" }).ClickAsync();
+
+		await Expect(page.GetByText("Settings saved!")).ToBeVisibleAsync();
+		await Expect(page.GetByText("Now Followed")).ToBeVisibleAsync();
+		await Expect(page.GetByText("Newmage")).ToBeVisibleAsync();
+		Assert.True(app.Repository.GetCharacter(characters[0].Key)!.IsFollowed);
+		Assert.True(app.Repository.GetCharacter(characters[1].Key)!.IsFollowed);
+		Assert.Collection(
+			app.FollowAnnouncer.Announcements,
+			announcement => Assert.Equal(characters[0].Key, Assert.Single(announcement.Characters).Key),
+			announcement => Assert.Equal(characters[1].Key, Assert.Single(announcement.Characters).Key));
+	}
+
+	[PlaywrightE2EFact]
+	public async Task HomePageShowsFollowedCharacterProgress()
 	{
 		var followed = new VerifiedCharacter("us", "Hyjal", "Keela", 101, "Hyjal", 80);
 		var alt = new VerifiedCharacter("us", "Area 52", "Newmage", 202, "Area 52", 70);
@@ -89,11 +131,26 @@ public sealed class CharacterManagementE2ETests
 		await page.GotoAsync("/");
 
 		await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Manage Characters" }).First).ToBeVisibleAsync();
-		await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Followed Characters" })).ToBeVisibleAsync();
+		await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Character Progress" })).ToBeVisibleAsync();
 		await Expect(page.Locator(".character-row", new() { HasTextString = "Keela" })).ToBeVisibleAsync();
 		await Expect(page.Locator(".character-row", new() { HasTextString = "🏆 2468" })).ToBeVisibleAsync();
-		await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Other Verified Characters" })).ToBeVisibleAsync();
-		await Expect(page.Locator(".character-card.readonly", new() { HasTextString = "Newmage" })).ToBeVisibleAsync();
+	}
+
+	[PlaywrightE2EFact]
+	public async Task HomePageWorksWithPublicBasePath()
+	{
+		var followed = new VerifiedCharacter("us", "Hyjal", "Keela", 101, "Hyjal", 80);
+		await using var app = await CharacterManagementTestApp.StartAsync([followed], publicPathBase: "/mplus-keybot");
+		app.SeedFollowedCharacter(followed);
+		await using var browser = await LaunchChromiumAsync();
+		await using var context = await browser.Browser.NewContextAsync(new() { BaseURL = app.BaseUrl });
+		var page = await context.NewPageAsync();
+
+		await page.GotoAsync("/mplus-keybot/");
+
+		await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Manage Characters" }).First).ToBeVisibleAsync();
+		await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Character Progress" })).ToBeVisibleAsync();
+		await Expect(page.Locator(".character-row", new() { HasTextString = "Keela" })).ToBeVisibleAsync();
 	}
 
 	[PlaywrightE2EFact]
@@ -188,7 +245,7 @@ public sealed class CharacterManagementE2ETests
 
 		public CharacterRepository Repository { get; }
 
-		public static async Task<CharacterManagementTestApp> StartAsync(IReadOnlyList<VerifiedCharacter> verifiedCharacters)
+		public static async Task<CharacterManagementTestApp> StartAsync(IReadOnlyList<VerifiedCharacter> verifiedCharacters, string publicPathBase = "")
 		{
 			var baseUrl = GetAvailableLoopbackUrl();
 			var databasePath = Path.Combine(Path.GetTempPath(), $"mplus-keybot-e2e-{Guid.NewGuid():N}.db");
@@ -199,12 +256,13 @@ public sealed class CharacterManagementE2ETests
 			{
 				EnvironmentName = "Development",
 				ApplicationName = typeof(CharacterManagementE2ETests).Assembly.GetName().Name,
+				WebRootPath = WebAssetPaths.GetDistDirectory(Directory.GetCurrentDirectory()),
 			});
 			builder.WebHost.UseUrls(baseUrl);
 			builder.Logging.ClearProviders();
 			builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["Web:PublicBaseUrl"] = baseUrl,
+				["Web:PublicBaseUrl"] = baseUrl + publicPathBase,
 				["Blizzard:Region"] = "us",
 			});
 
@@ -230,8 +288,16 @@ public sealed class CharacterManagementE2ETests
 				})
 				.AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, _ => { });
 			builder.Services.AddAuthorization();
+			builder.Services.AddViteServices();
 
 			var app = builder.Build();
+			var webUrls = app.Services.GetRequiredService<WebUrlBuilder>();
+			var requestPathBase = !string.IsNullOrWhiteSpace(webUrls.PathBase)
+				? webUrls.PathBase
+				: webUrls.CookiePath == "/" ? string.Empty : webUrls.CookiePath;
+			if (!string.IsNullOrWhiteSpace(requestPathBase))
+				app.UsePathBase(requestPathBase);
+			app.UseRouting();
 			app.UseAuthentication();
 			app.UseAuthorization();
 			app.MapFollowWebRoutes();

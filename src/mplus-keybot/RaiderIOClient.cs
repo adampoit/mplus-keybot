@@ -111,6 +111,7 @@ public sealed class CharacterDto
 public sealed class MythicPlusProfileRunDto
 {
 	public required string Dungeon { get; set; }
+	public string? Short_Name { get; set; }
 	public required int Mythic_Level { get; set; }
 	public required int Clear_Time_Ms { get; set; }
 	public required int Par_Time_Ms { get; set; }
@@ -170,6 +171,7 @@ public sealed class SpecDto
 public sealed class DungeonDto
 {
 	public required string Name { get; set; }
+	public string? Short_Name { get; set; }
 	public required string Slug { get; set; }
 	public required int Expansion_Id { get; set; }
 }
