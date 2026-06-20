@@ -8,18 +8,22 @@ using Newtonsoft.Json;
 
 public sealed class DiscordBotHostedService : IHostedService
 {
+	private readonly BotStatusRotator m_statusRotator;
+
 	public DiscordBotHostedService(
 		DiscordSocketClient discordClient,
 		IConfiguration config,
 		ILogger<DiscordBotHostedService> logger,
 		FollowFlowStateService followFlowStates,
-		WebUrlBuilder urls)
+		WebUrlBuilder urls,
+		BotStatusRotator statusRotator)
 	{
 		m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
 		m_config = config ?? throw new ArgumentNullException(nameof(config));
 		m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		m_followFlowStates = followFlowStates ?? throw new ArgumentNullException(nameof(followFlowStates));
 		m_urls = urls ?? throw new ArgumentNullException(nameof(urls));
+		m_statusRotator = statusRotator ?? throw new ArgumentNullException(nameof(statusRotator));
 	}
 
 	public async Task StartAsync(CancellationToken cancellationToken)
@@ -34,6 +38,8 @@ public sealed class DiscordBotHostedService : IHostedService
 
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
+		await m_statusRotator.StopAsync().ConfigureAwait(false);
+
 		m_discordClient.Ready -= ReadyAsync;
 		m_discordClient.SlashCommandExecuted -= SlashCommandExecutedAsync;
 		m_discordClient.Log -= LogAsync;
@@ -70,7 +76,7 @@ public sealed class DiscordBotHostedService : IHostedService
 			m_logger.LogError("{DiscordCommandError}", json);
 		}
 
-		await m_discordClient.SetGameAsync("/help · 🐉 tracking dungeon adventures", type: ActivityType.CustomStatus).ConfigureAwait(false);
+		await m_statusRotator.StartAsync().ConfigureAwait(false);
 	}
 
 	private Task SlashCommandExecutedAsync(SocketSlashCommand command) => command.Data.Name switch

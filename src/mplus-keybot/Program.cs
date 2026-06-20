@@ -35,7 +35,10 @@ builder.Services.AddSingleton<CharacterManagementService>();
 builder.Services.AddSingleton<ICharacterFollowAnnouncer, DiscordCharacterFollowAnnouncer>();
 builder.Services.AddSingleton<FollowFlowStateService>();
 if (discordTokenConfigured)
+{
+	builder.Services.AddSingleton<BotStatusRotator>();
 	builder.Services.AddHostedService<DiscordBotHostedService>();
+}
 builder.Services.AddSingleton<SQLiteConnection>(_ =>
 {
 	var db = new SQLiteConnection("mplus-data.db");

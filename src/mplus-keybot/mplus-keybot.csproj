@@ -28,6 +28,10 @@
   </Target>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="mplus-keybot.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Discord.Net" Version="3.19.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.5" />
