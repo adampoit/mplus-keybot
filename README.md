@@ -19,13 +19,13 @@ A Discord bot that tracks Mythic+ dungeon runs for your World of Warcraft guild 
 - **Slash command registration** (`/follow`) for Battle.net-verified character management
 - **Automatic polling** of Raider.IO every 5 minutes for runs
 - **SQLite storage** for followed characters and run history—no external database needed
-- **React Router management UI** served by ASP.NET Core, backed by JSON API endpoints
+- **React Router SSR management UI** orchestrated by .NET Aspire, backed by ASP.NET Core JSON API endpoints
 - **Lightweight**—runs anywhere .NET runs
 
 ## Quick Start
 
 1. **Create a Discord bot** at [discord.com/developers](https://discord.com/developers) and invite it to your server
-2. **Create a Battle.net application** and configure the redirect URI to match `Web:PublicBaseUrl` plus `/auth/blizzard/callback`
+2. **Create a Battle.net application** and configure the redirect URI to match `Web:PublicBaseUrl` plus `/api/auth/blizzard/callback`
 3. **Copy the example config** and add your Discord and Battle.net credentials:
    ```bash
    cp appsettings.example.json appsettings.json
@@ -33,7 +33,7 @@ A Discord bot that tracks Mythic+ dungeon runs for your World of Warcraft guild 
    ```
 4. **Run it**:
    ```bash
-   dotnet run
+   dotnet run --project src/MPlusKeybot.AppHost
    ```
 
 The bot will create `mplus-data.db` in the working directory.
@@ -91,38 +91,47 @@ export Web__PathBase=/mplus-keybot
 export Blizzard__ClientId=battle-net-client-id
 export Blizzard__ClientSecret=battle-net-client-secret
 export Blizzard__Region=us
-dotnet run
+dotnet run --project src/MPlusKeybot.AppHost
 ```
 
 ### Option 3: Command Line
 
 ```bash
-dotnet run --Discord:Token=your-token --Discord:Channel=mythic-plus
+dotnet run --project src/MPlusKeybot.Api/MPlusKeybot.Api.csproj -- --Discord:Token=your-token --Discord:Channel=mythic-plus
 ```
 
 ## Local Battle.net testing without Discord
 
-In development, you can omit `Discord:Token` and use `https://localhost:5142/mplus-keybot/dev/follow?discordUserId=dev-user` to create the same short-lived follow flow and complete the real Battle.net sign-in. Configure your Battle.net app with `https://localhost:5142/mplus-keybot/auth/blizzard/callback` as the redirect URI. The Discord/dev follow link is one-time use and expires quickly; the resulting management session lasts 24 hours.
+In development, you can omit `Discord:Token` and use `https://localhost:5173/mplus-keybot/api/dev/follow?discordUserId=dev-user` to create the same short-lived follow flow and complete the real Battle.net sign-in. Configure your Battle.net app with `https://localhost:5173/mplus-keybot/api/auth/blizzard/callback` as the redirect URI. The Discord/dev follow link is one-time use and expires quickly; the resulting management session lasts 24 hours.
+
+The Aspire AppHost pins the local web endpoint to `https://localhost:5173/mplus-keybot` by default so Battle.net redirect URI registration is stable. Override the port with `Web:LocalPort` if needed, or set `AppHost:PublicBaseUrl` explicitly when testing through a tunnel or reverse proxy.
 
 ## Local web development
+
+The local topology is Aspire-orchestrated:
+
+```text
+Browser -> React Router SSR Node app in src/MPlusKeybot.Web
+  /api/** -> thin frontend proxy -> ASP.NET Core API in src/MPlusKeybot.Api
+  /**     -> React Router SSR routes
+```
 
 Install frontend dependencies once:
 
 ```bash
+cd src/MPlusKeybot.Web
 npm install
 ```
 
-Then run the ASP.NET Core app. `Vite.AspNetCore` starts and proxies the Vite dev server automatically, so this single command gives you TypeScript/CSS hot module reload through the ASP.NET Core site:
+Then run the AppHost from the repository root and open `https://localhost:5173/mplus-keybot` or the web endpoint shown in the Aspire dashboard:
 
 ```bash
-dotnet watch --project src/mplus-keybot/mplus-keybot.csproj
+dotnet restore
+dotnet build
+dotnet run --project src/MPlusKeybot.AppHost
 ```
 
-You can still run `npm run dev` manually when you want to debug Vite directly.
-
-`dotnet build`, `dotnet test`, and `dotnet publish` run `npm run build` automatically when `package.json` is available. Set `SkipNpmBuild=true` if you need to bypass that target.
-
-ASP.NET Core serves the generated Vite bundle from `src/mplus-keybot/web/dist` and uses `Vite.AspNetCore` to resolve hashed production assets from the Vite manifest.
+Browser-side React fetches use same-origin `/api/...` URLs, handled by a generic React Router proxy route. Server-side React Router loaders and the proxy use the `API_BASE_URL` runtime environment variable injected by Aspire.
 
 ## Testing
 
@@ -133,8 +142,8 @@ dotnet test
 The Playwright character-management e2e tests run when Chromium is installed and are skipped otherwise:
 
 ```bash
-dotnet build tests/mplus-keybot.Tests/mplus-keybot.Tests.csproj
-pwsh tests/mplus-keybot.Tests/bin/Debug/net10.0/playwright.ps1 install chromium
+dotnet build tests/MPlusKeybot.Tests/MPlusKeybot.Tests.csproj
+pwsh tests/MPlusKeybot.Tests/bin/Debug/net10.0/playwright.ps1 install chromium
 dotnet test --filter CharacterManagementE2ETests
 ```
 

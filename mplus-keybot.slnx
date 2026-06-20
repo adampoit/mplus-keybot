@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/mplus-keybot/mplus-keybot.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/mplus-keybot.Tests/mplus-keybot.Tests.csproj" />
-  </Folder>
-</Solution>

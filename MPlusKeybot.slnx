@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MPlusKeybot.Api/MPlusKeybot.Api.csproj" />
+    <Project Path="src/MPlusKeybot.AppHost/MPlusKeybot.AppHost.csproj" />
+    <Project Path="src/MPlusKeybot.TestServices/MPlusKeybot.TestServices.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MPlusKeybot.Tests/MPlusKeybot.Tests.csproj" />
+  </Folder>
+</Solution>
