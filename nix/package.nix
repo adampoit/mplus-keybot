@@ -54,7 +54,7 @@
       ];
     };
 
-    npmDepsHash = "sha256-V4iO3mPH0v7CIYsQAGofWHbN7WFwrLIB3wOGKQnVfRw=";
+    npmDepsHash = "sha256-Byw7I7n5VGFt1Qzh77pLNs2drP0d/xOonHtyXyh+bBA=";
 
     # BASE_PATH is read at build time by react-router.config.ts/vite.config.ts
     # and baked into the server manifest (basename/publicPath) and the client

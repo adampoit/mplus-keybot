@@ -43,7 +43,19 @@
           };
         };
 
-        checks.default = api;
+        checks = {
+          inherit api web;
+          default = pkgs.linkFarm "mplus-keybot-checks" [
+            {
+              name = "api";
+              path = api;
+            }
+            {
+              name = "web";
+              path = web;
+            }
+          ];
+        };
 
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
@@ -58,7 +70,17 @@
           };
         };
 
-        formatter = pkgs.alejandra;
+        formatter = pkgs.writeShellApplication {
+          name = "alejandra-tree";
+          runtimeInputs = [pkgs.alejandra];
+          text = ''
+            if [ "$#" -eq 0 ]; then
+              exec alejandra .
+            else
+              exec alejandra "$@"
+            fi
+          '';
+        };
       }
     )
     // {
