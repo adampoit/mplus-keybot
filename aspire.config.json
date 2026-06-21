@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "src/MPlusKeybot.AppHost/MPlusKeybot.AppHost.csproj"
+  }
+}

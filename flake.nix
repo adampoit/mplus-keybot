@@ -19,17 +19,21 @@
         package = pkgs.callPackage ./nix/package.nix {
           inherit version;
         };
+        api = package;
+        web = package.web;
         fetchDeps = package."fetch-deps";
       in {
         packages = {
-          default = package;
+          default = api;
+          "mplus-keybot" = api;
+          "mplus-keybot-web" = web;
           "fetch-deps" = fetchDeps;
         };
 
         apps = {
           default = {
             type = "app";
-            program = "${package}/bin/mplus-keybot";
+            program = "${api}/bin/mplus-keybot";
             meta.description = "Run the mplus-keybot bot";
           };
           "fetch-deps" = {
@@ -39,7 +43,7 @@
           };
         };
 
-        checks.default = package;
+        checks.default = api;
 
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
