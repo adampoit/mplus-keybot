@@ -171,7 +171,7 @@ public sealed class CheckRunsJob : IJob
 	private List<PersonalBestRunAchievement> GetRunAchievements(MythicPlusKeystoneRunDto run, IReadOnlyList<Character> followedCharacters, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
 	{
 		var achievements = new List<PersonalBestRunAchievement>();
-		if (run.Mythic_Level < AchievementRules.MinimumPersonalBestAnnouncementLevel || run.Clear_Time_Ms > run.Keystone_Time_Ms)
+		if (run.Clear_Time_Ms > run.Keystone_Time_Ms)
 			return achievements;
 
 		return RunAchievementDetector.GetPersonalBestAchievements(run, followedCharacters, characterProfiles, GetOrCreateDungeonAchievementState)
@@ -182,7 +182,7 @@ public sealed class CheckRunsJob : IJob
 	private List<SeasonHighRunAchievement> GetSeasonHighAchievements(MythicPlusKeystoneRunDto run, IReadOnlyList<Character> followedCharacters, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
 	{
 		var achievements = new List<SeasonHighRunAchievement>();
-		if (run.Mythic_Level < AchievementRules.MinimumPersonalBestAnnouncementLevel || run.Clear_Time_Ms > run.Keystone_Time_Ms)
+		if (run.Clear_Time_Ms > run.Keystone_Time_Ms)
 			return achievements;
 
 		foreach (var character in followedCharacters)

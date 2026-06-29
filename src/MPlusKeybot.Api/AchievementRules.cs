@@ -1,7 +1,5 @@
 public static class AchievementRules
 {
-	public const int MinimumPersonalBestAnnouncementLevel = 10;
-
 	private static readonly IReadOnlyList<ScoreMilestone> s_scoreMilestones =
 	[
 		new(2000, "Keystone Master"),

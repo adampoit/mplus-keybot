@@ -7,7 +7,7 @@ public static class RunAchievementDetector
 		Func<Character, string, DungeonDto, CharacterDungeonAchievementState> getDungeonAchievementState)
 	{
 		var achievements = new List<RunPersonalBestAchievement>();
-		if (run.Mythic_Level < AchievementRules.MinimumPersonalBestAnnouncementLevel || run.Clear_Time_Ms > run.Keystone_Time_Ms)
+		if (run.Clear_Time_Ms > run.Keystone_Time_Ms)
 			return achievements;
 
 		foreach (var character in followedCharacters)
