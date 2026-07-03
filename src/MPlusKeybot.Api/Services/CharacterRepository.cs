@@ -1,22 +1,21 @@
+using MPlusKeybot.Api.Database;
 using SQLite;
 
-public sealed class CharacterRepository
-{
-	public CharacterRepository(SQLiteConnection db)
-	{
-		m_db = db ?? throw new ArgumentNullException(nameof(db));
-	}
+namespace MPlusKeybot.Api.Services;
 
+public sealed class CharacterRepository(SQLiteConnection db)
+{
 	public IReadOnlyList<Character> GetFollowedCharacters()
 	{
 		lock (m_lock)
 		{
-			return m_db.Table<Character>().Where(x => x.IsFollowed).ToList();
+			return [.. m_db.Table<Character>().Where(x => x.IsFollowed)];
 		}
 	}
 
 	public IReadOnlyDictionary<CharacterKey, Character> GetCharacters(IReadOnlyCollection<CharacterKey> keys)
 	{
+		ArgumentNullException.ThrowIfNull(keys);
 		lock (m_lock)
 		{
 			var result = new Dictionary<CharacterKey, Character>();
@@ -41,6 +40,7 @@ public sealed class CharacterRepository
 
 	public Character UpsertFollowedCharacter(VerifiedCharacter verifiedCharacter, string discordUserId, DateTime verifiedAt)
 	{
+		ArgumentNullException.ThrowIfNull(verifiedCharacter);
 		var key = verifiedCharacter.Key;
 		lock (m_lock)
 		{
@@ -76,6 +76,7 @@ public sealed class CharacterRepository
 
 	public Character? UnfollowCharacter(VerifiedCharacter verifiedCharacter, string discordUserId, DateTime verifiedAt)
 	{
+		ArgumentNullException.ThrowIfNull(verifiedCharacter);
 		lock (m_lock)
 		{
 			var character = GetCharacterNoLock(verifiedCharacter.Key);
@@ -119,11 +120,10 @@ public sealed class CharacterRepository
 		lock (m_lock)
 		{
 			var cutoff = DateTime.UtcNow - maxAge;
-			return m_db.Table<VerifiedCharacterSession>()
+			return [.. m_db.Table<VerifiedCharacterSession>()
 				.Where(x => x.SessionId == sessionId && x.VerificationSetId == verificationSetId && x.SeenAt >= cutoff)
 				.ToList()
-				.Select(x => new VerifiedCharacter(x.Region, x.Realm, x.Name, x.BlizzardCharacterId, x.RealmDisplayName, null, x.Class))
-				.ToList();
+				.Select(x => new VerifiedCharacter(x.Region, x.Realm, x.Name, x.BlizzardCharacterId, x.RealmDisplayName, null, x.Class))];
 		}
 	}
 
@@ -142,7 +142,7 @@ public sealed class CharacterRepository
 			var query = m_db.Table<CharacterDungeonAchievementState>().Where(x => x.CharacterId == characterId);
 			if (!string.IsNullOrWhiteSpace(season))
 				query = query.Where(x => x.Season == season);
-			return query.OrderByDescending(x => x.HighestTimedKeyLevelSeen).ToList();
+			return [.. query.OrderByDescending(x => x.HighestTimedKeyLevelSeen)];
 		}
 	}
 
@@ -157,6 +157,6 @@ public sealed class CharacterRepository
 	private Character? GetCharacterNoLock(CharacterKey key) => m_db.Table<Character>()
 		.FirstOrDefault(x => x.Name == key.Name && x.Realm == key.Realm && x.Region == key.Region);
 
-	private readonly SQLiteConnection m_db;
-	private readonly object m_lock = new();
+	private readonly SQLiteConnection m_db = db ?? throw new ArgumentNullException(nameof(db));
+	private readonly Lock m_lock = new();
 }

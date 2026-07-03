@@ -1,11 +1,12 @@
 using System.Globalization;
 using Discord;
+using MPlusKeybot.Api;
 
 namespace MPlusKeybot.Tests;
 
 public sealed class RunAnnouncementFormatterTests
 {
-	private const string PageUrl = "https://mplus-keybot.example";
+	private const string c_pageUrl = "https://mplus-keybot.example";
 
 	[Fact]
 	public void BuildsRunEmbedWithPersonalBestAchievements()
@@ -16,7 +17,7 @@ public sealed class RunAnnouncementFormatterTests
 			["Soryan", "Aedrastorm"],
 			[]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, c_pageUrl);
 
 		Assert.EndsWith($"{Environment.NewLine}{Environment.NewLine}🏆 New personal best: Aedrastorm, Soryan", embed.Description);
 	}
@@ -30,7 +31,7 @@ public sealed class RunAnnouncementFormatterTests
 			[],
 			["Soryan"]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, c_pageUrl);
 
 		Assert.EndsWith($"{Environment.NewLine}{Environment.NewLine}🔥 First +16 this season: Soryan", embed.Description);
 	}
@@ -44,7 +45,7 @@ public sealed class RunAnnouncementFormatterTests
 			["Soryan", "Aedrastorm"],
 			["Soryan"]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, c_pageUrl);
 
 		Assert.EndsWith($"{Environment.NewLine}{Environment.NewLine}🏆 New personal best: Aedrastorm, Soryan{Environment.NewLine}🔥 First +16 this season: Soryan", embed.Description);
 	}
@@ -59,8 +60,8 @@ public sealed class RunAnnouncementFormatterTests
 			["Soryan", "Aedrastorm"],
 			["Soryan"]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
-		var remainingPercentage = FormatPercentage(1 - (double)run.Clear_Time_Ms / run.Keystone_Time_Ms);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, c_pageUrl);
+		var remainingPercentage = FormatPercentage(1 - (double) run.Clear_Time_Ms / run.Keystone_Time_Ms);
 
 		Assert.Equal("+16 Magisters' Terrace", embed.Title);
 		Assert.Equal("https://raider.io/mythic-plus-runs/season-mn-1/12345-16-magisters-terrace", embed.Url);
@@ -82,8 +83,8 @@ public sealed class RunAnnouncementFormatterTests
 			[],
 			[]);
 
-		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, PageUrl);
-		var overPercentage = FormatPercentage((double)depletedRun.Clear_Time_Ms / depletedRun.Keystone_Time_Ms - 1);
+		var embed = RunAnnouncementFormatter.BuildEmbed(announcement, c_pageUrl);
+		var overPercentage = FormatPercentage((double) depletedRun.Clear_Time_Ms / depletedRun.Keystone_Time_Ms - 1);
 
 		Assert.Equal(Color.Red, embed.Color);
 		Assert.StartsWith($"Cleared in 34:10 of 34:00 ({overPercentage} over).", embed.Description);

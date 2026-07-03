@@ -1,5 +1,7 @@
 using SQLite;
 
+namespace MPlusKeybot.Api.Database;
+
 public static class DatabaseMigrations
 {
 	public static async Task RunAsync(SQLiteConnection db, RaiderIOClient raiderIOClient)

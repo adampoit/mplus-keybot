@@ -1,5 +1,7 @@
 using SQLite;
 
+namespace MPlusKeybot.Api.Database;
+
 public sealed class Character
 {
 	[PrimaryKey, AutoIncrement]

@@ -1,4 +1,5 @@
 using Discord;
+using MPlusKeybot.Api;
 
 namespace MPlusKeybot.Tests;
 

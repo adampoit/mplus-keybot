@@ -1,0 +1,5 @@
+# DO NOT EDIT: generated convention
+dist/
+node_modules/
+package-lock.json
+# END DO NOT EDIT

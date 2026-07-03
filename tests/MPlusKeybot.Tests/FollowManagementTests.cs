@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Configuration;
+using MPlusKeybot.Api;
+using MPlusKeybot.Api.Database;
+using MPlusKeybot.Api.Services;
 using SQLite;
 
 namespace MPlusKeybot.Tests;

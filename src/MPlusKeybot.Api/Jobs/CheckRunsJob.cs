@@ -1,42 +1,36 @@
 using System.Diagnostics;
+using System.Globalization;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using MPlusKeybot.Api.Database;
+using MPlusKeybot.Api.Services;
 using Quartz;
 using SQLite;
 
-public sealed class CheckRunsJob : IJob
+namespace MPlusKeybot.Api.Jobs;
+
+public sealed class CheckRunsJob(
+	ILogger<CheckRunsJob> logger,
+	DiscordSocketClient discordClient,
+	RaiderIOClient raiderIOClient,
+	SQLiteConnection db,
+	CharacterRepository characters,
+	IConfiguration config,
+	WebUrlBuilder urls) : IJob
 {
 	public const string JobName = "CheckRunsJob";
 	public const string RecurringTriggerName = "Every 5 Minutes";
 
-	public CheckRunsJob(
-		ILogger<CheckRunsJob> logger,
-		DiscordSocketClient discordClient,
-		RaiderIOClient raiderIOClient,
-		SQLiteConnection db,
-		CharacterRepository characters,
-		IConfiguration config,
-		WebUrlBuilder urls)
-	{
-		m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
-		m_raiderIOClient = raiderIOClient ?? throw new ArgumentNullException(nameof(raiderIOClient));
-		m_db = db ?? throw new ArgumentNullException(nameof(db));
-		m_characters = characters ?? throw new ArgumentNullException(nameof(characters));
-		m_urls = urls ?? throw new ArgumentNullException(nameof(urls));
-		m_discordChannel = config["Discord:Channel"];
-	}
-
 	public async Task Execute(IJobExecutionContext context)
 	{
 		var stopwatch = Stopwatch.StartNew();
-		m_logger.LogInformation($"Starting {nameof(CheckRunsJob)} job.");
+		LogJobStarting(m_logger);
 
 		var channel = GetAnnouncementChannel();
 		if (channel is null)
-			m_logger.LogInformation("No Discord announcement channel is available; syncing Raider.IO data without posting announcements.");
+			LogNoAnnouncementChannel(m_logger);
 
 		var characterProfiles = new Dictionary<int, CharacterDto>();
 		var followedCharacters = m_characters.GetFollowedCharacters();
@@ -73,7 +67,7 @@ public sealed class CheckRunsJob : IJob
 				await AnnounceCharacterAchievementsAsync(channel, character, profile.Result!).ConfigureAwait(false);
 
 			runs.UnionWith(profile.Result!.Mythic_Plus_Recent_Runs
-				.Select(run => new MythicPlusRun { Id = run.RunId, Date = DateTimeOffset.Parse(run.Completed_At) })
+				.Select(run => new MythicPlusRun { Id = run.RunId, Date = DateTimeOffset.Parse(run.Completed_At, CultureInfo.InvariantCulture) })
 				.Where(run => !m_db.Table<MythicPlusRun>().Any(x => x.Id == run.Id)));
 		}
 
@@ -111,7 +105,7 @@ public sealed class CheckRunsJob : IJob
 			m_db.Insert(run, "OR IGNORE");
 		}
 
-		m_logger.LogInformation($"Finished {nameof(CheckRunsJob)} job after {stopwatch.Elapsed}.");
+		LogJobFinished(m_logger, stopwatch.Elapsed);
 	}
 
 	private IMessageChannel? GetAnnouncementChannel()
@@ -168,18 +162,16 @@ public sealed class CheckRunsJob : IJob
 		}
 	}
 
-	private List<PersonalBestRunAchievement> GetRunAchievements(MythicPlusKeystoneRunDto run, IReadOnlyList<Character> followedCharacters, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
+	private List<PersonalBestRunAchievement> GetRunAchievements(MythicPlusKeystoneRunDto run, IReadOnlyList<Character> followedCharacters, Dictionary<int, CharacterDto> characterProfiles)
 	{
 		var achievements = new List<PersonalBestRunAchievement>();
 		if (run.Clear_Time_Ms > run.Keystone_Time_Ms)
 			return achievements;
 
-		return RunAchievementDetector.GetPersonalBestAchievements(run, followedCharacters, characterProfiles, GetOrCreateDungeonAchievementState)
-			.Select(x => new PersonalBestRunAchievement(x.CharacterName, x.DungeonName, x.KeyLevel, x.State))
-			.ToList();
+		return [.. RunAchievementDetector.GetPersonalBestAchievements(run, followedCharacters, characterProfiles, GetOrCreateDungeonAchievementState).Select(x => new PersonalBestRunAchievement(x.CharacterName, x.DungeonName, x.KeyLevel, x.State))];
 	}
 
-	private List<SeasonHighRunAchievement> GetSeasonHighAchievements(MythicPlusKeystoneRunDto run, IReadOnlyList<Character> followedCharacters, IReadOnlyDictionary<int, CharacterDto> characterProfiles)
+	private List<SeasonHighRunAchievement> GetSeasonHighAchievements(MythicPlusKeystoneRunDto run, IReadOnlyList<Character> followedCharacters, Dictionary<int, CharacterDto> characterProfiles)
 	{
 		var achievements = new List<SeasonHighRunAchievement>();
 		if (run.Clear_Time_Ms > run.Keystone_Time_Ms)
@@ -243,11 +235,30 @@ public sealed class CheckRunsJob : IJob
 
 	private sealed record SeasonHighRunAchievement(string CharacterName, int KeyLevel);
 
-	private readonly ILogger<CheckRunsJob> m_logger;
-	private readonly DiscordSocketClient m_discordClient;
-	private readonly RaiderIOClient m_raiderIOClient;
-	private readonly SQLiteConnection m_db;
-	private readonly CharacterRepository m_characters;
-	private readonly WebUrlBuilder m_urls;
-	private readonly string? m_discordChannel;
+	private static readonly Action<ILogger, Exception?> s_logJobStarting = LoggerMessage.Define(
+		LogLevel.Information,
+		new EventId(1, nameof(LogJobStarting)),
+		$"Starting {nameof(CheckRunsJob)} job.");
+
+	private static readonly Action<ILogger, Exception?> s_logNoAnnouncementChannel = LoggerMessage.Define(
+		LogLevel.Information,
+		new EventId(2, nameof(LogNoAnnouncementChannel)),
+		"No Discord announcement channel is available; syncing Raider.IO data without posting announcements.");
+
+	private static readonly Action<ILogger, TimeSpan, Exception?> s_logJobFinished = LoggerMessage.Define<TimeSpan>(
+		LogLevel.Information,
+		new EventId(3, nameof(LogJobFinished)),
+		$"Finished {nameof(CheckRunsJob)} job after {{Elapsed}}.");
+
+	private static void LogJobStarting(ILogger logger) => s_logJobStarting(logger, null);
+	private static void LogNoAnnouncementChannel(ILogger logger) => s_logNoAnnouncementChannel(logger, null);
+	private static void LogJobFinished(ILogger logger, TimeSpan elapsed) => s_logJobFinished(logger, elapsed, null);
+
+	private readonly ILogger<CheckRunsJob> m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly DiscordSocketClient m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
+	private readonly RaiderIOClient m_raiderIOClient = raiderIOClient ?? throw new ArgumentNullException(nameof(raiderIOClient));
+	private readonly SQLiteConnection m_db = db ?? throw new ArgumentNullException(nameof(db));
+	private readonly CharacterRepository m_characters = characters ?? throw new ArgumentNullException(nameof(characters));
+	private readonly WebUrlBuilder m_urls = urls ?? throw new ArgumentNullException(nameof(urls));
+	private readonly string? m_discordChannel = config["Discord:Channel"];
 }

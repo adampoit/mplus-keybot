@@ -1,0 +1,46 @@
+name: Apply Repository Conventions
+
+on:
+  schedule:
+    - cron: '22 9 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      conventions:
+        type: string
+        description: Optional convention names to add (space-separated)
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - id: not-adam
+        uses: adampoit/not-adam@v1
+        with:
+          private-key: ${{ secrets.NOT_ADAM_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          token: ${{ steps.not-adam.outputs.token }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Add requested conventions
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.conventions != '' }}
+        env:
+          GH_TOKEN: ${{ steps.not-adam.outputs.token }}
+        run: dnx repo-conventions add ${{ inputs.conventions }} --commit
+
+      - name: Apply conventions
+        env:
+          GH_TOKEN: ${{ steps.not-adam.outputs.token }}
+        run: dnx repo-conventions apply --open-pr

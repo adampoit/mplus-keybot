@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 
+namespace MPlusKeybot.Api;
+
 internal static class SqliteProviderInitializer
 {
 	[ModuleInitializer]

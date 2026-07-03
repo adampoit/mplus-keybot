@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="OpenIddict.Server.AspNetCore" Version="7.5.0" />
+    <PackageReference Include="OpenIddict.Server.AspNetCore" />
   </ItemGroup>
 
 </Project>

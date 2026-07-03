@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Configuration;
 
+namespace MPlusKeybot.Api.Services;
+
 public sealed class WebUrlBuilder
 {
 	public WebUrlBuilder(IConfiguration configuration)

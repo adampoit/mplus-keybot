@@ -4,23 +4,20 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
+namespace MPlusKeybot.Api.Services;
+
 public interface IBlizzardProfileClient
 {
 	Task<IReadOnlyList<VerifiedCharacter>> GetProfileCharactersAsync(string accessToken, string region, CancellationToken cancellationToken = default);
 }
 
-public sealed class BlizzardProfileClient : IBlizzardProfileClient
+public sealed class BlizzardProfileClient(HttpClient client, IConfiguration configuration, ILogger<BlizzardProfileClient>? logger = null) : IBlizzardProfileClient
 {
-	public BlizzardProfileClient(HttpClient client, IConfiguration configuration, ILogger<BlizzardProfileClient>? logger = null)
-	{
-		m_client = client ?? throw new ArgumentNullException(nameof(client));
-		m_configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-		m_logger = logger;
-	}
-
 	public async Task<IReadOnlyList<VerifiedCharacter>> GetProfileCharactersAsync(string accessToken, string region, CancellationToken cancellationToken = default)
 	{
-		var normalizedRegion = region.Trim().ToLowerInvariant();
+		ArgumentNullException.ThrowIfNull(region);
+
+		var normalizedRegion = NormalizeRegion(region);
 		var path = $"profile/user/wow?namespace=profile-{normalizedRegion}&locale=en_US";
 		var configuredBaseUrl = m_configuration["Blizzard:ApiBaseUrl"];
 		var requestUrl = string.IsNullOrWhiteSpace(configuredBaseUrl)
@@ -43,18 +40,27 @@ public sealed class BlizzardProfileClient : IBlizzardProfileClient
 			.ToList() ?? [];
 
 		if (characters.Count == 0)
-			characters = FindCharacters(document.RootElement, normalizedRegion).ToList();
+			characters = [.. FindCharacters(document.RootElement, normalizedRegion)];
 
 		if (characters.Count == 0)
 			LogProfileShape(document.RootElement);
 
-		return characters
+		return [.. characters
 			.GroupBy(character => character.Key)
 			.Select(group => group.First())
 			.OrderByDescending(character => character.Level)
 			.ThenBy(character => character.RealmDisplayName ?? character.Realm)
-			.ThenBy(character => character.Name)
-			.ToList();
+			.ThenBy(character => character.Name)];
+	}
+
+	private static string NormalizeRegion(string region)
+	{
+		var trimmed = region.Trim();
+		return string.Create(trimmed.Length, trimmed, static (buffer, value) =>
+		{
+			for (var i = 0; i < value.Length; i++)
+				buffer[i] = char.ToLowerInvariant(value[i]);
+		});
 	}
 
 	private static VerifiedCharacter? ToVerifiedCharacter(BlizzardAccountCharacterDto accountCharacter, string defaultRegion)
@@ -95,6 +101,20 @@ public sealed class BlizzardProfileClient : IBlizzardProfileClient
 					foreach (var childCharacter in FindCharacters(item, defaultRegion))
 						yield return childCharacter;
 				}
+				break;
+			case JsonValueKind.Undefined:
+				break;
+			case JsonValueKind.String:
+				break;
+			case JsonValueKind.Number:
+				break;
+			case JsonValueKind.True:
+				break;
+			case JsonValueKind.False:
+				break;
+			case JsonValueKind.Null:
+				break;
+			default:
 				break;
 		}
 	}
@@ -158,8 +178,8 @@ public sealed class BlizzardProfileClient : IBlizzardProfileClient
 		var accountCount = GetArrayLength(root, "accounts");
 		var characterCount = CountPropertiesNamed(root, "characters");
 
-		m_logger.LogWarning(
-			"Battle.net profile response contained no parseable characters. Top-level properties: {TopLevelProperties}; wow_accounts count: {WowAccountCount}; accounts count: {AccountCount}; characters arrays found: {CharacterArraysFound}; first character shape: {FirstCharacterShape}",
+		LogUnparseableProfileShape(
+			m_logger,
 			topLevelProperties,
 			wowAccountCount,
 			accountCount,
@@ -239,9 +259,17 @@ public sealed class BlizzardProfileClient : IBlizzardProfileClient
 	}
 
 	private static readonly JsonSerializerOptions s_jsonOptions = new() { PropertyNameCaseInsensitive = true };
-	private readonly HttpClient m_client;
-	private readonly IConfiguration m_configuration;
-	private readonly ILogger<BlizzardProfileClient>? m_logger;
+	private static readonly Action<ILogger, string, int?, int?, int, string?, Exception?> s_logUnparseableProfileShape = LoggerMessage.Define<string, int?, int?, int, string?>(
+		LogLevel.Warning,
+		new EventId(1, nameof(LogUnparseableProfileShape)),
+		"Battle.net profile response contained no parseable characters. Top-level properties: {TopLevelProperties}; wow_accounts count: {WowAccountCount}; accounts count: {AccountCount}; characters arrays found: {CharacterArraysFound}; first character shape: {FirstCharacterShape}");
+
+	private static void LogUnparseableProfileShape(ILogger logger, string topLevelProperties, int? wowAccountCount, int? accountCount, int characterCount, string? firstCharacterShape) =>
+		s_logUnparseableProfileShape(logger, topLevelProperties, wowAccountCount, accountCount, characterCount, firstCharacterShape, null);
+
+	private readonly HttpClient m_client = client ?? throw new ArgumentNullException(nameof(client));
+	private readonly IConfiguration m_configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+	private readonly ILogger<BlizzardProfileClient>? m_logger = logger;
 }
 
 public sealed class BlizzardWowProfileDto

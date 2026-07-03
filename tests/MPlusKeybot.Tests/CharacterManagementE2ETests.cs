@@ -1,20 +1,17 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Aspire.Hosting;
-using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using Microsoft.Playwright;
+using MPlusKeybot.Api;
+using MPlusKeybot.Api.Database;
+using MPlusKeybot.Api.Services;
 using SQLite;
 
 namespace MPlusKeybot.Tests;
 
-public sealed class CharacterManagementE2ETests : IClassFixture<CharacterManagementE2ETests.AspireE2EFixture>
+public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.AspireE2EFixture app) : IClassFixture<CharacterManagementE2ETests.AspireE2EFixture>
 {
-	public CharacterManagementE2ETests(AspireE2EFixture app)
-	{
-		m_app = app;
-	}
-
 	[PlaywrightE2EFact]
 	public async Task FrontendServesProxiedApiAndServerRenderedReact()
 	{
@@ -197,7 +194,7 @@ public sealed class CharacterManagementE2ETests : IClassFixture<CharacterManagem
 
 	private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
 
-	private readonly AspireE2EFixture m_app;
+	private readonly AspireE2EFixture m_app = app;
 
 	private sealed class PlaywrightE2EFactAttribute : FactAttribute
 	{
@@ -210,15 +207,9 @@ public sealed class CharacterManagementE2ETests : IClassFixture<CharacterManagem
 		}
 	}
 
-	private sealed class PlaywrightBrowserSession : IAsyncDisposable
+	private sealed class PlaywrightBrowserSession(IBrowser browser, IPlaywright playwright) : IAsyncDisposable
 	{
-		public PlaywrightBrowserSession(IBrowser browser, IPlaywright playwright)
-		{
-			Browser = browser;
-			m_playwright = playwright;
-		}
-
-		public IBrowser Browser { get; }
+		public IBrowser Browser { get; } = browser;
 
 		public static bool IsChromiumInstalled()
 		{
@@ -227,7 +218,7 @@ public sealed class CharacterManagementE2ETests : IClassFixture<CharacterManagem
 				using var playwright = Playwright.CreateAsync().GetAwaiter().GetResult();
 				return File.Exists(playwright.Chromium.ExecutablePath);
 			}
-			catch
+			catch (PlaywrightException)
 			{
 				return false;
 			}
@@ -239,7 +230,7 @@ public sealed class CharacterManagementE2ETests : IClassFixture<CharacterManagem
 			m_playwright.Dispose();
 		}
 
-		private readonly IPlaywright m_playwright;
+		private readonly IPlaywright m_playwright = playwright;
 	}
 
 	// Fixture built on Aspire.Hosting.Testing. It composes the production
@@ -295,11 +286,18 @@ public sealed class CharacterManagementE2ETests : IClassFixture<CharacterManagem
 		// any already-followed characters straight to the isolated DB.
 		public async Task SetStateAsync(IReadOnlyList<VerifiedCharacterDto> verifiedCharacters, IReadOnlyList<E2EFollowedCharacterDto> followedCharacters)
 		{
+			ArgumentNullException.ThrowIfNull(followedCharacters);
 			await m_testServicesClient!.PostAsJsonAsync("admin/blizzard", new
 			{
 				Characters = verifiedCharacters.Select(c => new
 				{
-					c.Region, c.Realm, c.Name, c.BlizzardCharacterId, c.RealmDisplayName, c.Level, c.Class,
+					c.Region,
+					c.Realm,
+					c.Name,
+					c.BlizzardCharacterId,
+					c.RealmDisplayName,
+					c.Level,
+					c.Class,
 				}).ToList(),
 			}).ConfigureAwait(false);
 
@@ -342,6 +340,7 @@ public sealed class CharacterManagementE2ETests : IClassFixture<CharacterManagem
 		// management cookie — exactly the production flow minus Discord.
 		public async Task StartManagementSessionAsync(IPage page)
 		{
+			ArgumentNullException.ThrowIfNull(page);
 			string stateToken;
 			using (var db = OpenDatabase())
 			{
@@ -355,15 +354,20 @@ public sealed class CharacterManagementE2ETests : IClassFixture<CharacterManagem
 			await page.WaitForURLAsync("**/follow/characters").ConfigureAwait(false);
 		}
 
-		public async Task<CharacterDto> GetCharacterAsync(VerifiedCharacterDto character) =>
-			await TryGetCharacterAsync(character).ConfigureAwait(false) ?? throw new InvalidOperationException($"Character {character.Name} was not found.");
-
-		public async Task<CharacterDto?> TryGetCharacterAsync(VerifiedCharacterDto character)
+		public async Task<CharacterDto> GetCharacterAsync(VerifiedCharacterDto character)
 		{
+			ArgumentNullException.ThrowIfNull(character);
+
+			return await TryGetCharacterAsync(character).ConfigureAwait(false) ?? throw new InvalidOperationException($"Character {character.Name} was not found.");
+		}
+
+		public Task<CharacterDto?> TryGetCharacterAsync(VerifiedCharacterDto character)
+		{
+			ArgumentNullException.ThrowIfNull(character);
 			using var db = OpenDatabase();
 			var repo = new CharacterRepository(db);
 			var found = repo.GetCharacter(CharacterKey.From(character.Region, character.Realm, character.Name));
-			return found is null ? null : new CharacterDto(found.IsFollowed);
+			return Task.FromResult(found is null ? null : new CharacterDto(found.IsFollowed));
 		}
 
 		public async Task<IReadOnlyList<AnnouncementDto>> GetAnnouncementsAsync()
@@ -386,7 +390,10 @@ public sealed class CharacterManagementE2ETests : IClassFixture<CharacterManagem
 					if (api.IsSuccessStatusCode && web.IsSuccessStatusCode)
 						return;
 				}
-				catch when (!cts.IsCancellationRequested)
+				catch (HttpRequestException) when (!cts.IsCancellationRequested)
+				{
+				}
+				catch (TaskCanceledException) when (!cts.IsCancellationRequested)
 				{
 				}
 

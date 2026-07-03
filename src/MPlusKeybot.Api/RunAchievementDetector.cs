@@ -1,3 +1,6 @@
+using MPlusKeybot.Api.Database;
+namespace MPlusKeybot.Api;
+
 public static class RunAchievementDetector
 {
 	public static List<RunPersonalBestAchievement> GetPersonalBestAchievements(

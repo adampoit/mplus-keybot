@@ -1,3 +1,5 @@
+using MPlusKeybot.Api;
+using MPlusKeybot.Api.Database;
 using SQLite;
 
 namespace MPlusKeybot.Tests;

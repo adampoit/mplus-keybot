@@ -1,0 +1,8 @@
+conventions:
+  - path: adampoit/conventions/dotnet-project
+  - path: adampoit/conventions/typescript-project
+  - path: adampoit/conventions/nix-project
+
+pull-request:
+  labels:
+    - automation

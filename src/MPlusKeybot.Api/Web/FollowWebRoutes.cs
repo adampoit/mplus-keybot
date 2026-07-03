@@ -1,21 +1,26 @@
 using System.Globalization;
-using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MPlusKeybot.Api.Database;
+using MPlusKeybot.Api.Jobs;
+using MPlusKeybot.Api.Services;
 using Quartz;
+
+namespace MPlusKeybot.Api.Web;
 
 public static class FollowWebRoutes
 {
 	public static void MapFollowWebRoutes(this WebApplication app)
 	{
+		ArgumentNullException.ThrowIfNull(app);
 		app.MapGet("/api/health", () => Results.Ok(new
 		{
 			status = "ok",
@@ -79,12 +84,12 @@ public static class FollowWebRoutes
 		{
 			verifiedCharacters = await blizzard.GetProfileCharactersAsync(accessToken, config["Blizzard:Region"] ?? "us", cancellationToken).ConfigureAwait(false);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException)
 		{
 			return Results.Json(new HomeResponse("error", [], [], $"Battle.net profile lookup failed: {ex.Message}"), statusCode: StatusCodes.Status502BadGateway);
 		}
 
-		var existingCharacters = characters.GetCharacters(verifiedCharacters.Select(x => x.Key).ToList());
+		var existingCharacters = characters.GetCharacters([.. verifiedCharacters.Select(x => x.Key)]);
 		var maxLevel = verifiedCharacters.Count == 0 ? 0 : verifiedCharacters.Max(x => x.Level) ?? 0;
 		var followedCharacters = verifiedCharacters
 			.Where(character => existingCharacters.TryGetValue(character.Key, out var existing) && existing.IsFollowed)
@@ -104,7 +109,7 @@ public static class FollowWebRoutes
 
 	private static IResult SignIn(string? returnUrl, WebUrlBuilder urls)
 	{
-		var redirectPath = string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith('/') || returnUrl.StartsWith("//") ? "/" : returnUrl;
+		var redirectPath = string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith('/') || returnUrl.StartsWith("//", StringComparison.Ordinal) ? "/" : returnUrl;
 		return Results.Challenge(new AuthenticationProperties { RedirectUri = urls.BuildPublicUrl(redirectPath) }, ["Blizzard"]);
 	}
 
@@ -133,17 +138,17 @@ public static class FollowWebRoutes
 	{
 		var consumed = states.Consume(state);
 		if (consumed is null)
-			return Task.FromResult<IResult>(Results.Redirect(urls.BuildPublicUrl("/follow/characters?error=invalid-link")));
+			return Task.FromResult(Results.Redirect(urls.BuildPublicUrl("/follow/characters?error=invalid-link")));
 
 		var properties = new AuthenticationProperties
 		{
 			RedirectUri = urls.BuildPublicUrl("/follow/characters"),
 		};
-		properties.Items[DiscordUserIdProperty] = consumed.DiscordUserId;
-		properties.Items[ManagementSessionIdProperty] = GenerateToken();
-		properties.Items[ManagementSessionExpiresAtProperty] = DateTimeOffset.UtcNow.AddHours(24).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+		properties.Items[c_discordUserIdProperty] = consumed.DiscordUserId;
+		properties.Items[c_managementSessionIdProperty] = GenerateToken();
+		properties.Items[c_managementSessionExpiresAtProperty] = DateTimeOffset.UtcNow.AddHours(24).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
 
-		return Task.FromResult<IResult>(Results.Challenge(properties, ["Blizzard"]));
+		return Task.FromResult(Results.Challenge(properties, ["Blizzard"]));
 	}
 
 	private static async Task<IResult> GetFollowCharactersAsync(
@@ -174,14 +179,14 @@ public static class FollowWebRoutes
 		{
 			verifiedCharacters = await blizzard.GetProfileCharactersAsync(accessToken, config["Blizzard:Region"] ?? "us", cancellationToken).ConfigureAwait(false);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException)
 		{
 			return Results.Json(new CharacterManagementResponse("error", true, [], null, $"Battle.net profile lookup failed: {ex.Message}"), statusCode: StatusCodes.Status502BadGateway);
 		}
 
 		var verificationSetId = GenerateToken();
 		characters.SaveVerifiedCharacterSet(session.SessionId, verificationSetId, verifiedCharacters, DateTime.UtcNow);
-		var existingCharacters = characters.GetCharacters(verifiedCharacters.Select(x => x.Key).ToList());
+		var existingCharacters = characters.GetCharacters([.. verifiedCharacters.Select(x => x.Key)]);
 		var maxLevel = verifiedCharacters.Count == 0 ? 0 : verifiedCharacters.Max(x => x.Level) ?? 0;
 		var tokens = antiforgery.GetAndStoreTokens(context);
 		var responseCharacters = verifiedCharacters
@@ -255,8 +260,8 @@ public static class FollowWebRoutes
 		await followAnnouncer.AnnounceCharactersFollowedAsync(session.DiscordUserId, followedCharacters, context.RequestAborted).ConfigureAwait(false);
 
 		return Results.Json(new SaveCharactersResponse(
-			followedCharacters.Select(character => ToSavedCharacterDto(character, maxLevel)).ToList(),
-			unfollowedCharacters.Select(character => ToSavedCharacterDto(character, maxLevel)).ToList()));
+			[.. followedCharacters.Select(character => ToSavedCharacterDto(character, maxLevel))],
+			[.. unfollowedCharacters.Select(character => ToSavedCharacterDto(character, maxLevel))]));
 	}
 
 	private static bool IsWowProfileScopeExplicitlyMissing(AuthenticationProperties? properties)
@@ -278,14 +283,14 @@ public static class FollowWebRoutes
 		string? sessionId = null;
 		if (auth.Properties is not null)
 		{
-			auth.Properties.Items.TryGetValue(DiscordUserIdProperty, out discordUserId);
-			auth.Properties.Items.TryGetValue(ManagementSessionIdProperty, out sessionId);
+			auth.Properties.Items.TryGetValue(c_discordUserIdProperty, out discordUserId);
+			auth.Properties.Items.TryGetValue(c_managementSessionIdProperty, out sessionId);
 		}
 		discordUserId ??= context.User.FindFirstValue(ClaimTypes.NameIdentifier);
 		if (string.IsNullOrWhiteSpace(discordUserId) || string.IsNullOrWhiteSpace(sessionId))
 			return null;
 
-		if (!auth.Properties!.Items.TryGetValue(ManagementSessionExpiresAtProperty, out var expiresAtValue) ||
+		if (!auth.Properties!.Items.TryGetValue(c_managementSessionExpiresAtProperty, out var expiresAtValue) ||
 			!long.TryParse(expiresAtValue, NumberStyles.None, CultureInfo.InvariantCulture, out var expiresAtUnix) ||
 			DateTimeOffset.FromUnixTimeSeconds(expiresAtUnix) <= DateTimeOffset.UtcNow)
 		{
@@ -352,10 +357,10 @@ public static class FollowWebRoutes
 		if (elapsed.TotalMinutes < 1)
 			return "just now";
 		if (elapsed.TotalHours < 1)
-			return $"{(int)elapsed.TotalMinutes}m ago";
+			return $"{(int) elapsed.TotalMinutes}m ago";
 		if (elapsed.TotalDays < 1)
-			return $"{(int)elapsed.TotalHours}h ago";
-		return $"{(int)elapsed.TotalDays}d ago";
+			return $"{(int) elapsed.TotalHours}h ago";
+		return $"{(int) elapsed.TotalDays}d ago";
 	}
 
 	private static string GenerateToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
@@ -363,9 +368,9 @@ public static class FollowWebRoutes
 		.Replace('/', '_')
 		.TrimEnd('=');
 
-	private const string DiscordUserIdProperty = "DiscordUserId";
-	private const string ManagementSessionIdProperty = "ManagementSessionId";
-	private const string ManagementSessionExpiresAtProperty = "ManagementSessionExpiresAt";
+	private const string c_discordUserIdProperty = "DiscordUserId";
+	private const string c_managementSessionIdProperty = "ManagementSessionId";
+	private const string c_managementSessionExpiresAtProperty = "ManagementSessionExpiresAt";
 
 	private sealed record ManagementSession(string DiscordUserId, string SessionId);
 }
@@ -376,7 +381,7 @@ public sealed record CharacterManagementResponse(string Status, bool IsAuthentic
 public sealed record CharacterManagementForm(string VerificationSetId, string RequestToken);
 public sealed record WebCharacterDto(string Key, string Name, string RealmDisplayName, string Realm, string Region, string? RenderUrl, int? Level, int MaxLevel, string? ClassName, bool Followed, bool IsErroring, double CurrentScore, DateTime? LastCheckedAt, IReadOnlyList<DungeonAchievementDto> DungeonAchievements);
 public sealed record DungeonAchievementDto(string DungeonName, string? DungeonShortName, string DungeonSlug, int KeyLevel);
-public sealed record SaveCharactersRequest(string VerificationSetId, string[]? Characters);
+public sealed record SaveCharactersRequest(string VerificationSetId, IReadOnlyList<string>? Characters);
 public sealed record SaveCharactersResponse(IReadOnlyList<SavedCharacterDto> Followed, IReadOnlyList<SavedCharacterDto> Unfollowed);
 public sealed record SavedCharacterDto(string Key, string Name, string RealmDisplayName, string Realm, string Region, string? RenderUrl, int? Level, int MaxLevel, string? ClassName);
 public sealed record DevToolsResponse(IReadOnlyList<DevCharacterDto> FollowedCharacters);

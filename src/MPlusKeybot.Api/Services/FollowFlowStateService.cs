@@ -1,13 +1,11 @@
 using System.Security.Cryptography;
+using MPlusKeybot.Api.Database;
 using SQLite;
 
-public sealed class FollowFlowStateService
-{
-	public FollowFlowStateService(SQLiteConnection db)
-	{
-		m_db = db ?? throw new ArgumentNullException(nameof(db));
-	}
+namespace MPlusKeybot.Api.Services;
 
+public sealed class FollowFlowStateService(SQLiteConnection db)
+{
 	public FollowFlowState Create(string discordUserId, TimeSpan lifetime)
 	{
 		var state = new FollowFlowState
@@ -46,8 +44,8 @@ public sealed class FollowFlowStateService
 		.Replace('/', '_')
 		.TrimEnd('=');
 
-	private readonly SQLiteConnection m_db;
-	private readonly object m_lock = new();
+	private readonly SQLiteConnection m_db = db ?? throw new ArgumentNullException(nameof(db));
+	private readonly Lock m_lock = new();
 }
 
 public sealed record FollowFlowConsumeResult(string DiscordUserId);

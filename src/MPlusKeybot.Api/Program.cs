@@ -1,18 +1,24 @@
 using Discord.WebSocket;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using MPlusKeybot.Api;
+using MPlusKeybot.Api.Database;
+using MPlusKeybot.Api.Jobs;
+using MPlusKeybot.Api.Services;
+using MPlusKeybot.Api.Web;
 using Quartz;
 using Quartz.Logging;
 using SQLite;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using MSLogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 LogProvider.SetCurrentLogProvider(new ConsoleLogProvider());
 
@@ -21,8 +27,8 @@ var port = Environment.GetEnvironmentVariable("PORT");
 if (int.TryParse(port, out var portNumber))
 	builder.WebHost.UseUrls($"http://127.0.0.1:{portNumber}");
 builder.Host.UseSystemd();
-builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", Microsoft.Extensions.Logging.LogLevel.Warning);
-builder.Logging.AddFilter("Microsoft.AspNetCore.Http.Result.RedirectResult", Microsoft.Extensions.Logging.LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", MSLogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Http.Result.RedirectResult", MSLogLevel.Warning);
 var discordTokenConfigured = !string.IsNullOrWhiteSpace(builder.Configuration["Discord:Token"]);
 
 builder.Services.AddHttpClient();
@@ -44,7 +50,7 @@ if (discordTokenConfigured)
 	builder.Services.AddSingleton<BotStatusRotator>();
 	builder.Services.AddHostedService<DiscordBotHostedService>();
 }
-builder.Services.AddSingleton<SQLiteConnection>(services =>
+builder.Services.AddSingleton(services =>
 {
 	var configuration = services.GetRequiredService<IConfiguration>();
 	var db = new SQLiteConnection(configuration["Database:Path"] ?? "mplus-data.db");
@@ -136,10 +142,7 @@ builder.Services.AddQuartz(q =>
 {
 	q.UseSimpleTypeLoader();
 	q.UseInMemoryStore();
-	q.UseDefaultThreadPool(tp =>
-	{
-		tp.MaxConcurrency = 10;
-	});
+	q.UseDefaultThreadPool(tp => tp.MaxConcurrency = 10);
 
 	var checkRunsJobKey = new JobKey(CheckRunsJob.JobName);
 	q.AddJob<CheckRunsJob>(checkRunsJobKey, job => job
@@ -151,10 +154,7 @@ builder.Services.AddQuartz(q =>
 			.WithIntervalInMinutes(5)
 			.RepeatForever()));
 });
-builder.Services.AddQuartzHostedService(opt =>
-{
-	opt.WaitForJobsToComplete = true;
-});
+builder.Services.AddQuartzHostedService(opt => opt.WaitForJobsToComplete = true);
 
 var app = builder.Build();
 app.UseForwardedHeaders(new ForwardedHeadersOptions
@@ -183,27 +183,18 @@ await DatabaseMigrations.RunAsync(db, raiderIOClient).ConfigureAwait(false);
 
 await app.RunAsync().ConfigureAwait(false);
 
-sealed class ConsoleLogProvider : ILogProvider
+internal sealed class ConsoleLogProvider : ILogProvider
 {
-	public Logger GetLogger(string name)
-	{
-		return (level, func, exception, parameters) =>
-		{
-			if (level >= Quartz.Logging.LogLevel.Info && func != null)
-			{
-				Console.WriteLine("[" + DateTime.Now.ToLongTimeString() + "] [" + level + "] " + func(), parameters);
-			}
-			return true;
-		};
-	}
+	public Logger GetLogger(string name) => (level, func, exception, parameters) =>
+												 {
+													 if (level >= Quartz.Logging.LogLevel.Info && func != null)
+													 {
+														 Console.WriteLine("[" + DateTime.Now.ToLongTimeString() + "] [" + level + "] " + func(), parameters);
+													 }
+													 return true;
+												 };
 
-	public IDisposable OpenNestedContext(string message)
-	{
-		throw new NotImplementedException();
-	}
+	public IDisposable OpenNestedContext(string message) => throw new NotImplementedException();
 
-	public IDisposable OpenMappedContext(string key, object value, bool destructure = false)
-	{
-		throw new NotImplementedException();
-	}
+	public IDisposable OpenMappedContext(string key, object value, bool destructure = false) => throw new NotImplementedException();
 }

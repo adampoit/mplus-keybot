@@ -1,3 +1,5 @@
+namespace MPlusKeybot.Api;
+
 public static class AchievementRules
 {
 	private static readonly IReadOnlyList<ScoreMilestone> s_scoreMilestones =

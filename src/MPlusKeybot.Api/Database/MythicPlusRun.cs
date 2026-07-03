@@ -1,5 +1,7 @@
 using SQLite;
 
+namespace MPlusKeybot.Api.Database;
+
 public sealed class MythicPlusRun : IEquatable<MythicPlusRun>
 {
 	[PrimaryKey]
@@ -8,7 +10,7 @@ public sealed class MythicPlusRun : IEquatable<MythicPlusRun>
 
 	public override int GetHashCode() => HashCode.Combine(Id);
 
-	public override bool Equals(object? other) => Equals(other as MythicPlusRun);
+	public override bool Equals(object? obj) => Equals(obj as MythicPlusRun);
 
 	public bool Equals(MythicPlusRun? other) => other?.Id == Id;
 }

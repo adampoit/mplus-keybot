@@ -4,6 +4,8 @@ using Polly;
 using Polly.RateLimit;
 using Polly.Wrap;
 
+namespace MPlusKeybot.Api;
+
 public sealed class RaiderIOClient
 {
 	public RaiderIOClient(HttpClient client)
@@ -16,9 +18,9 @@ public sealed class RaiderIOClient
 			.WaitAndRetryForeverAsync((retryAttempt, exception, context) => (exception as RateLimitRejectedException)!.RetryAfter, (_, _, _) => Task.CompletedTask);
 		var retryPolicy = Policy
 			.HandleResult<HttpResponseMessage>(r =>
-				r.StatusCode == HttpStatusCode.BadGateway ||
-				r.StatusCode == HttpStatusCode.InternalServerError ||
-				r.StatusCode == HttpStatusCode.GatewayTimeout)
+				r.StatusCode is HttpStatusCode.BadGateway or
+				HttpStatusCode.InternalServerError or
+				HttpStatusCode.GatewayTimeout)
 			.WaitAndRetryForeverAsync(retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
 		m_apiCallPolicy = retryPolicy
 			.WrapAsync(rateLimitRetryPolicy)
@@ -27,7 +29,7 @@ public sealed class RaiderIOClient
 
 	public async Task<ServiceResult<CharacterDto>> GetCharacterAsync(string name, string realm, string region) => await GetJsonAsync<CharacterDto>(
 		$"https://raider.io/api/v1/characters/profile?region={region}&realm={realm}&name={name}&fields=mythic_plus_recent_runs,mythic_plus_best_runs,mythic_plus_scores_by_season:current,mythic_plus_ranks",
-		(HttpStatusCode code, string content) =>
+		(code, content) =>
 		{
 			if (code == HttpStatusCode.BadRequest && content.Contains("Could not find requested character"))
 				return ErrorResult.CharacterNotFound;
@@ -36,7 +38,6 @@ public sealed class RaiderIOClient
 		}).ConfigureAwait(false);
 
 	public async Task<ServiceResult<MythicPlusRunDto>> GetMythicPlusRunAsync(string runId) => await GetJsonAsync<MythicPlusRunDto>($"https://raider.io/api/mythic-plus/runs/{runId}").ConfigureAwait(false);
-
 
 	private async Task<ServiceResult<T>> GetJsonAsync<T>(string url, Func<HttpStatusCode, string, ErrorResult?>? handleNonSuccess = null)
 	{
@@ -48,18 +49,25 @@ public sealed class RaiderIOClient
 			{
 				var errorResult = handleNonSuccess(result.StatusCode, content);
 				if (errorResult is not null)
-					return ServiceResult<T>.CreateError(errorResult.Value);
+					return ServiceResult.CreateError<T>(errorResult.Value);
 			}
 
 			Console.WriteLine($"ERROR - {content}");
-			return ServiceResult<T>.CreateError(ErrorResult.Unknown);
+			return ServiceResult.CreateError<T>(ErrorResult.Unknown);
 		}
 
-		return ServiceResult<T>.CreateSuccess(JsonConvert.DeserializeObject<T>(await result.Content.ReadAsStringAsync().ConfigureAwait(false))!);
+		return ServiceResult.CreateSuccess(JsonConvert.DeserializeObject<T>(await result.Content.ReadAsStringAsync().ConfigureAwait(false))!);
 	}
 
 	private readonly HttpClient m_client;
 	private readonly AsyncPolicyWrap<HttpResponseMessage> m_apiCallPolicy;
+}
+
+public static class ServiceResult
+{
+	public static ServiceResult<T> CreateSuccess<T>(T result) => new(result, null);
+
+	public static ServiceResult<T> CreateError<T>(ErrorResult error) => new(default, error);
 }
 
 public sealed class ServiceResult<T>
@@ -70,11 +78,7 @@ public sealed class ServiceResult<T>
 
 	public bool IsFailure => Error is not null;
 
-	public static ServiceResult<T> CreateSuccess(T result) => new ServiceResult<T>(result, null);
-
-	public static ServiceResult<T> CreateError(ErrorResult error) => new ServiceResult<T>(default(T), error);
-
-	private ServiceResult(T? result, ErrorResult? error)
+	internal ServiceResult(T? result, ErrorResult? error)
 	{
 		if (result is null && error is null)
 			throw new ArgumentException($"One of {nameof(result)} and {nameof(error)} must be set.");
@@ -104,8 +108,8 @@ public sealed class CharacterDto
 	public IReadOnlyList<MythicPlusSeasonScoreDto> Mythic_Plus_Scores_By_Season { get; set; } = [];
 	public IReadOnlyDictionary<string, MythicPlusRankDto>? Mythic_Plus_Ranks { get; set; }
 
-	public string? CurrentMythicPlusSeason => Mythic_Plus_Scores_By_Season.FirstOrDefault()?.Season;
-	public double CurrentMythicPlusScore => Mythic_Plus_Scores_By_Season.FirstOrDefault()?.Scores.All ?? 0;
+	public string? CurrentMythicPlusSeason => Mythic_Plus_Scores_By_Season.Count == 0 ? null : Mythic_Plus_Scores_By_Season[0].Season;
+	public double CurrentMythicPlusScore => Mythic_Plus_Scores_By_Season.Count == 0 ? 0 : Mythic_Plus_Scores_By_Season[0].Scores.All;
 }
 
 public sealed class MythicPlusProfileRunDto
