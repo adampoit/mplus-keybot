@@ -13,7 +13,11 @@
 
     src = lib.fileset.toSource {
       root = ../.;
-      fileset = ../src/MPlusKeybot.Api;
+      fileset = lib.fileset.unions [
+        ../Directory.Build.props
+        ../Directory.Packages.props
+        ../src/MPlusKeybot.Api
+      ];
     };
 
     projectFile = "src/MPlusKeybot.Api/MPlusKeybot.Api.csproj";
@@ -42,8 +46,9 @@
     inherit version;
 
     src = lib.fileset.toSource {
-      root = ../src/MPlusKeybot.Web;
+      root = ../.;
       fileset = lib.fileset.unions [
+        ../tsconfig.json
         ../src/MPlusKeybot.Web/package.json
         ../src/MPlusKeybot.Web/package-lock.json
         ../src/MPlusKeybot.Web/base-path.config.ts
@@ -53,6 +58,8 @@
         ../src/MPlusKeybot.Web/app
       ];
     };
+
+    sourceRoot = "source/src/MPlusKeybot.Web";
 
     npmDepsHash = "sha256-Byw7I7n5VGFt1Qzh77pLNs2drP0d/xOonHtyXyh+bBA=";
 

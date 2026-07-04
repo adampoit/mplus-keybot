@@ -1,3 +1,4 @@
+using MPlusKeybot.Api.Services;
 namespace MPlusKeybot.Tests;
 
 public sealed class DiscordBotHostedServiceTests

@@ -1,5 +1,7 @@
 using Discord;
 
+namespace MPlusKeybot.Api;
+
 public static class CharacterFollowAnnouncementFormatter
 {
 	public static Embed BuildEmbed(string discordUserId, VerifiedCharacter character, string pageUrl, DateTimeOffset? timestamp = null)

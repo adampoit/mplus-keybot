@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text;
+using MPlusKeybot.Api;
+using MPlusKeybot.Api.Services;
 
 namespace MPlusKeybot.Tests;
 
@@ -10,7 +12,7 @@ public sealed class BlizzardProfileClientTests
 	{
 		var handler = new StubHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK)
 		{
-			Content = new StringContent("""
+			Content = new StringContent(/*lang=json,strict*/ """
 {
   "wow_accounts": [
     {

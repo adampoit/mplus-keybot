@@ -2,7 +2,9 @@ using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
 
-public sealed class BotStatusRotator
+namespace MPlusKeybot.Api.Services;
+
+public sealed class BotStatusRotator(DiscordSocketClient discordClient, ILogger<BotStatusRotator> logger) : IDisposable
 {
 	internal const int BotStatusMaxLength = 32;
 	internal static readonly TimeSpan RotationInterval = TimeSpan.FromHours(1);
@@ -10,7 +12,7 @@ public sealed class BotStatusRotator
 	internal const string BotStatusPrefix = "/help | ";
 
 	internal static readonly string[] BotStatusSuffixes =
-	{
+	[
 		"io go up",
 		"one more key, then bed",
 		"defeat. deplete. repeat.",
@@ -24,7 +26,7 @@ public sealed class BotStatusRotator
 		"Leeeroooooy Jeeeenkins!",
 		"Grizzly Hills key when?",
 		"corpse run simulator",
-	};
+	];
 
 	internal static IReadOnlyList<string> BotStatuses => BuildStatuses();
 
@@ -36,17 +38,24 @@ public sealed class BotStatusRotator
 		return statuses;
 	}
 
-	private readonly DiscordSocketClient m_discordClient;
-	private readonly ILogger<BotStatusRotator> m_logger;
-	private readonly object m_gate = new();
+	private static readonly Action<ILogger, Exception?> s_logRotationLoopTerminated = LoggerMessage.Define(
+		LogLevel.Error,
+		new EventId(1, nameof(LogRotationLoopTerminated)),
+		"Bot status rotation loop terminated unexpectedly.");
+
+	private static readonly Action<ILogger, string, Exception?> s_logFailedToSetStatus = LoggerMessage.Define<string>(
+		LogLevel.Warning,
+		new EventId(2, nameof(LogFailedToSetStatus)),
+		"Failed to set bot status to {Status}.");
+
+	private static void LogRotationLoopTerminated(ILogger logger, Exception exception) => s_logRotationLoopTerminated(logger, exception);
+	private static void LogFailedToSetStatus(ILogger logger, string status, Exception exception) => s_logFailedToSetStatus(logger, status, exception);
+
+	private readonly DiscordSocketClient m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
+	private readonly ILogger<BotStatusRotator> m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly Lock m_gate = new();
 	private CancellationTokenSource? m_cancellation;
 	private Task? m_loopTask;
-
-	public BotStatusRotator(DiscordSocketClient discordClient, ILogger<BotStatusRotator> logger)
-	{
-		m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
-		m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	}
 
 	public async Task StartAsync()
 	{
@@ -61,6 +70,8 @@ public sealed class BotStatusRotator
 
 		await SetStatusAsync(GetCurrentStatus()).ConfigureAwait(false);
 	}
+
+	public void Dispose() => m_cancellation?.Dispose();
 
 	public async Task StopAsync()
 	{
@@ -89,10 +100,7 @@ public sealed class BotStatusRotator
 		}
 	}
 
-	internal int GetCurrentRotationIndex()
-	{
-		return GetRotationIndex(DateTimeOffset.UtcNow, BotStatuses.Count);
-	}
+	internal static int GetCurrentRotationIndex() => GetRotationIndex(DateTimeOffset.UtcNow, BotStatuses.Count);
 
 	internal static int GetRotationIndex(DateTimeOffset timestamp, int statusCount)
 	{
@@ -100,10 +108,10 @@ public sealed class BotStatusRotator
 			throw new ArgumentOutOfRangeException(nameof(statusCount), "At least one bot status is required.");
 
 		var index = GetRotationSlot(timestamp) % statusCount;
-		return (int)(index < 0 ? index + statusCount : index);
+		return (int) (index < 0 ? index + statusCount : index);
 	}
 
-	internal string GetCurrentStatus()
+	internal static string GetCurrentStatus()
 	{
 		var statuses = BotStatuses;
 		return statuses[GetRotationIndex(DateTimeOffset.UtcNow, statuses.Count)];
@@ -115,10 +123,7 @@ public sealed class BotStatusRotator
 		return TimeSpan.FromTicks(ticksIntoInterval == 0 ? RotationInterval.Ticks : RotationInterval.Ticks - ticksIntoInterval);
 	}
 
-	private static long GetRotationSlot(DateTimeOffset timestamp)
-	{
-		return GetTicksSinceEpoch(timestamp) / RotationInterval.Ticks;
-	}
+	private static long GetRotationSlot(DateTimeOffset timestamp) => GetTicksSinceEpoch(timestamp) / RotationInterval.Ticks;
 
 	private static long GetTicksIntoInterval(DateTimeOffset timestamp)
 	{
@@ -126,10 +131,7 @@ public sealed class BotStatusRotator
 		return ticksIntoInterval < 0 ? ticksIntoInterval + RotationInterval.Ticks : ticksIntoInterval;
 	}
 
-	private static long GetTicksSinceEpoch(DateTimeOffset timestamp)
-	{
-		return timestamp.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks;
-	}
+	private static long GetTicksSinceEpoch(DateTimeOffset timestamp) => timestamp.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks;
 
 	private async Task RotateAsync(CancellationToken cancellationToken)
 	{
@@ -144,9 +146,9 @@ public sealed class BotStatusRotator
 		catch (OperationCanceledException)
 		{
 		}
-		catch (Exception ex)
+		catch (InvalidOperationException ex)
 		{
-			m_logger.LogError(ex, "Bot status rotation loop terminated unexpectedly.");
+			LogRotationLoopTerminated(m_logger, ex);
 		}
 	}
 
@@ -156,9 +158,9 @@ public sealed class BotStatusRotator
 		{
 			await m_discordClient.SetGameAsync(status, type: ActivityType.CustomStatus).ConfigureAwait(false);
 		}
-		catch (Exception ex)
+		catch (Discord.Net.HttpException ex)
 		{
-			m_logger.LogWarning(ex, "Failed to set bot status to {Status}.", status);
+			LogFailedToSetStatus(m_logger, status, ex);
 		}
 	}
 }

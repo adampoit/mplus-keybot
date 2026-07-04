@@ -1,10 +1,7 @@
-public sealed class CharacterManagementService
-{
-	public CharacterManagementService(CharacterRepository characters)
-	{
-		m_characters = characters ?? throw new ArgumentNullException(nameof(characters));
-	}
+namespace MPlusKeybot.Api.Services;
 
+public sealed class CharacterManagementService(CharacterRepository characters)
+{
 	public CharacterFollowUpdateResult UpdateFollowState(string discordUserId, IReadOnlyCollection<VerifiedCharacter> verifiedCharacters, IReadOnlyCollection<CharacterKey> selectedCharacters)
 	{
 		var verifiedByKey = verifiedCharacters
@@ -16,7 +13,7 @@ public sealed class CharacterManagementService
 		if (unverifiedSelections.Count > 0)
 			throw new InvalidOperationException("Posted character choices included characters that were not verified by Battle.net.");
 
-		var existing = m_characters.GetCharacters(verifiedByKey.Keys.ToList());
+		var existing = m_characters.GetCharacters([.. verifiedByKey.Keys]);
 		var followed = new List<CharacterKey>();
 		var unfollowed = new List<CharacterKey>();
 		var now = DateTime.UtcNow;
@@ -40,7 +37,7 @@ public sealed class CharacterManagementService
 		return new CharacterFollowUpdateResult(followed, unfollowed);
 	}
 
-	private readonly CharacterRepository m_characters;
+	private readonly CharacterRepository m_characters = characters ?? throw new ArgumentNullException(nameof(characters));
 }
 
 public sealed record CharacterFollowUpdateResult(IReadOnlyList<CharacterKey> Followed, IReadOnlyList<CharacterKey> Unfollowed);

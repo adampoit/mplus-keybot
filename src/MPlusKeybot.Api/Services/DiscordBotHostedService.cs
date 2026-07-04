@@ -1,3 +1,4 @@
+using System.Globalization;
 using Discord;
 using Discord.Net;
 using Discord.WebSocket;
@@ -6,25 +7,17 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
-public sealed class DiscordBotHostedService : IHostedService
-{
-	private readonly BotStatusRotator m_statusRotator;
+namespace MPlusKeybot.Api.Services;
 
-	public DiscordBotHostedService(
-		DiscordSocketClient discordClient,
-		IConfiguration config,
-		ILogger<DiscordBotHostedService> logger,
-		FollowFlowStateService followFlowStates,
-		WebUrlBuilder urls,
-		BotStatusRotator statusRotator)
-	{
-		m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
-		m_config = config ?? throw new ArgumentNullException(nameof(config));
-		m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		m_followFlowStates = followFlowStates ?? throw new ArgumentNullException(nameof(followFlowStates));
-		m_urls = urls ?? throw new ArgumentNullException(nameof(urls));
-		m_statusRotator = statusRotator ?? throw new ArgumentNullException(nameof(statusRotator));
-	}
+public sealed class DiscordBotHostedService(
+	DiscordSocketClient discordClient,
+	IConfiguration config,
+	ILogger<DiscordBotHostedService> logger,
+	FollowFlowStateService followFlowStates,
+	WebUrlBuilder urls,
+	BotStatusRotator statusRotator) : IHostedService
+{
+	private readonly BotStatusRotator m_statusRotator = statusRotator ?? throw new ArgumentNullException(nameof(statusRotator));
 
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
@@ -50,7 +43,7 @@ public sealed class DiscordBotHostedService : IHostedService
 
 	private Task LogAsync(LogMessage msg)
 	{
-		m_logger.LogInformation("{Message}", msg.ToString());
+		LogDiscordMessage(m_logger, msg.ToString());
 		return Task.CompletedTask;
 	}
 
@@ -73,7 +66,7 @@ public sealed class DiscordBotHostedService : IHostedService
 		catch (HttpException exception)
 		{
 			var json = JsonConvert.SerializeObject(exception.Errors, Formatting.Indented);
-			m_logger.LogError("{DiscordCommandError}", json);
+			LogDiscordCommandError(m_logger, json);
 		}
 
 		await m_statusRotator.StartAsync().ConfigureAwait(false);
@@ -88,7 +81,7 @@ public sealed class DiscordBotHostedService : IHostedService
 
 	private async Task HandleFollowCommandAsync(SocketSlashCommand command)
 	{
-		var state = m_followFlowStates.Create(command.User.Id.ToString(), TimeSpan.FromMinutes(10));
+		var state = m_followFlowStates.Create(command.User.Id.ToString(CultureInfo.InvariantCulture), TimeSpan.FromMinutes(10));
 		var url = m_urls.BuildPublicUrl("/api/follow/start", ("state", state.State));
 		var components = new ComponentBuilder()
 			.WithButton("Follow/unfollow characters", style: ButtonStyle.Link, url: url)
@@ -117,9 +110,22 @@ public sealed class DiscordBotHostedService : IHostedService
 		await command.RespondAsync(embed: embed, components: components, ephemeral: true).ConfigureAwait(false);
 	}
 
-	private readonly DiscordSocketClient m_discordClient;
-	private readonly IConfiguration m_config;
-	private readonly ILogger<DiscordBotHostedService> m_logger;
-	private readonly FollowFlowStateService m_followFlowStates;
-	private readonly WebUrlBuilder m_urls;
+	private static readonly Action<ILogger, string, Exception?> s_logDiscordMessage = LoggerMessage.Define<string>(
+		LogLevel.Information,
+		new EventId(1, nameof(LogDiscordMessage)),
+		"{Message}");
+
+	private static readonly Action<ILogger, string, Exception?> s_logDiscordCommandError = LoggerMessage.Define<string>(
+		LogLevel.Error,
+		new EventId(2, nameof(LogDiscordCommandError)),
+		"{DiscordCommandError}");
+
+	private static void LogDiscordMessage(ILogger logger, string message) => s_logDiscordMessage(logger, message, null);
+	private static void LogDiscordCommandError(ILogger logger, string error) => s_logDiscordCommandError(logger, error, null);
+
+	private readonly DiscordSocketClient m_discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
+	private readonly IConfiguration m_config = config ?? throw new ArgumentNullException(nameof(config));
+	private readonly ILogger<DiscordBotHostedService> m_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly FollowFlowStateService m_followFlowStates = followFlowStates ?? throw new ArgumentNullException(nameof(followFlowStates));
+	private readonly WebUrlBuilder m_urls = urls ?? throw new ArgumentNullException(nameof(urls));
 }

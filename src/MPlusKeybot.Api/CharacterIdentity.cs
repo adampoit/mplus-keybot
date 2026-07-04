@@ -1,5 +1,7 @@
 using System.Globalization;
 
+namespace MPlusKeybot.Api;
+
 public sealed record CharacterKey(string Region, string Realm, string Name)
 {
 	public static CharacterKey From(string region, string realm, string name) => new(

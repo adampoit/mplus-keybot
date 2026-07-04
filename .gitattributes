@@ -1,0 +1,48 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Source code
+*.cs     text diff=csharp
+*.csx    text diff=csharp
+*.py     text diff=python
+*.js     text diff=javascript
+*.ts     text diff=javascript
+*.jsx    text diff=javascript
+*.tsx    text diff=javascript
+*.json   text
+*.xml    text
+*.yaml   text
+*.yml    text
+*.md     text
+*.sh     text eol=lf
+*.ps1    text eol=lf
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+
+# Docker
+Dockerfile text
+*.dockerignore text
+
+# Git
+.gitattributes text
+.gitignore     text
+
+# Archives
+*.7z     binary
+*.gz     binary
+*.jar    binary
+*.rar    binary
+*.tar    binary
+*.zip    binary
+
+# Images
+*.gif    binary
+*.ico    binary
+*.jpg    binary
+*.jpeg   binary
+*.pdf    binary
+*.png    binary
+*.psd    binary
+*.svg    text
+*.webp   binary
+

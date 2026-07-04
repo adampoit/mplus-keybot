@@ -1,4 +1,7 @@
 using Discord;
+using MPlusKeybot.Api.Services;
+
+namespace MPlusKeybot.Api;
 
 public static class DiscordEmbedDefaults
 {

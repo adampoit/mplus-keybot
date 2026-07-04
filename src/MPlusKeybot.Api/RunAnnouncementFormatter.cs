@@ -1,10 +1,12 @@
 using Discord;
 
+namespace MPlusKeybot.Api;
+
 public static class RunAnnouncementFormatter
 {
 	public static Embed BuildEmbed(MythicPlusRunAnnouncement announcement, string pageUrl)
 	{
-		var percentage = (double)announcement.ClearTimeMs / announcement.KeystoneTimeMs;
+		var percentage = (double) announcement.ClearTimeMs / announcement.KeystoneTimeMs;
 		var percentageString = percentage < 1 ? $"{1 - percentage:P1} remaining" : $"{percentage - 1:P1} over";
 		var clearTimeString = $"Cleared in {TimeSpan.FromMilliseconds(announcement.ClearTimeMs):mm':'ss} of {TimeSpan.FromMilliseconds(announcement.KeystoneTimeMs):mm':'ss} ({percentageString}).";
 

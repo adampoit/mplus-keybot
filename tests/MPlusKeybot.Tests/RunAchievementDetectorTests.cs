@@ -1,3 +1,5 @@
+using MPlusKeybot.Api;
+using MPlusKeybot.Api.Database;
 namespace MPlusKeybot.Tests;
 
 public sealed class RunAchievementDetectorTests
@@ -71,7 +73,7 @@ public sealed class RunAchievementDetectorTests
 		Assert.Equal(expectedSlug, recentRun.DungeonSlug);
 	}
 
-	private static IReadOnlyList<RunPersonalBestAchievement> Detect(MythicPlusKeystoneRunDto run, int existingBest) => RunAchievementDetector.GetPersonalBestAchievements(
+	private static List<RunPersonalBestAchievement> Detect(MythicPlusKeystoneRunDto run, int existingBest) => RunAchievementDetector.GetPersonalBestAchievements(
 		run,
 		[CreateCharacter()],
 		CreateProfiles(),
@@ -85,7 +87,7 @@ public sealed class RunAchievementDetectorTests
 		Region = "US",
 	};
 
-	private static IReadOnlyDictionary<int, CharacterDto> CreateProfiles() => new Dictionary<int, CharacterDto>
+	private static Dictionary<int, CharacterDto> CreateProfiles() => new()
 	{
 		[1] = new CharacterDto
 		{
