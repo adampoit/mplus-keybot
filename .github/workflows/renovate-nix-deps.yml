@@ -1,0 +1,67 @@
+name: Renovate Nix dependency metadata
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  nix-deps:
+    name: Regenerate Nix dependency metadata
+    if: >-
+      github.actor == 'renovate[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Renovate branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v17
+
+      - name: Enable Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
+
+      - name: Regenerate NuGet dependency hashes
+        run: nix run .#fetch-deps -- ./nix/nuget-deps.json
+
+      - name: Regenerate npm dependency hash
+        run: |
+          npm_deps_hash="$(nix run nixpkgs#prefetch-npm-deps -- ./src/MPlusKeybot.Web/package-lock.json)"
+          python - "$npm_deps_hash" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          package_nix = pathlib.Path("nix/package.nix")
+          npm_deps_hash = sys.argv[1]
+          text = package_nix.read_text()
+          updated = re.sub(
+              r'npmDepsHash = "[^"]+";',
+              f'npmDepsHash = "{npm_deps_hash}";',
+              text,
+              count=1,
+          )
+          if updated == text:
+              raise SystemExit("Could not find npmDepsHash in nix/package.nix")
+          package_nix.write_text(updated)
+          PY
+
+      - name: Commit regenerated dependency metadata
+        run: |
+          if git diff --quiet -- nix/nuget-deps.json nix/package.nix; then
+            echo "Nix dependency metadata is already up to date"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add nix/nuget-deps.json nix/package.nix
+          git commit -m "Regenerate Nix dependency metadata"
+          git push
