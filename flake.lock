@@ -18,7 +18,41 @@
         "type": "github"
       }
     },
+    "nix-dotnet": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "lastModified": 1783496418,
+        "narHash": "sha256-I6gbX+QEhDB3U4QC4AnWw3YCNuiS0JlgWSJyJDpdhSE=",
+        "owner": "adampoit",
+        "repo": "nix-dotnet",
+        "rev": "fd073fd04eb1385826f6d5209b977f3bc8a90110",
+        "type": "github"
+      },
+      "original": {
+        "owner": "adampoit",
+        "repo": "nix-dotnet",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
+      "locked": {
+        "lastModified": 1770562336,
+        "narHash": "sha256-ub1gpAONMFsT/GU2hV6ZWJjur8rJ6kKxdm9IlCT0j84=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
       "locked": {
         "lastModified": 1775423009,
         "narHash": "sha256-vPKLpjhIVWdDrfiUM8atW6YkIggCEKdSAlJPzzhkQlw=",
@@ -37,7 +71,8 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "nix-dotnet": "nix-dotnet",
+        "nixpkgs": "nixpkgs_2"
       }
     },
     "systems": {

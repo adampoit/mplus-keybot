@@ -3,6 +3,7 @@
   buildDotnetModule,
   buildNpmPackage,
   dotnetCorePackages,
+  dotnetSdk,
   nodejs,
   version,
   basePath ? "/",
@@ -24,7 +25,7 @@
     nugetDeps = ./nuget-deps.json;
     executables = ["mplus-keybot"];
 
-    dotnet-sdk = dotnetCorePackages.sdk_10_0;
+    dotnet-sdk = dotnetSdk;
     dotnet-runtime = dotnetCorePackages.aspnetcore_10_0;
 
     meta = {

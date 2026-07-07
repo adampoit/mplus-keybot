@@ -32,6 +32,7 @@ coverage/
 publish/
 BenchmarkDotNet.Artifacts/
 .dotnet_tools/
+.dotnet-cli-home/
 
 # Added by gitignore-node convention
 logs
