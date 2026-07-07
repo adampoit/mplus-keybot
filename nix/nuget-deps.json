@@ -1,43 +1,43 @@
 [
   {
     "pname": "Discord.Net",
-    "version": "3.19.1",
-    "hash": "sha256-LU8i8eLz+Y1BMV3X9MVypbCpY7NhMxmilVOpgBj6QRg="
+    "version": "3.20.1",
+    "hash": "sha256-ZFfPaiDiY6mWtI4NHAqgZk1oCNm4TXuUtaP63y5M/2w="
   },
   {
     "pname": "Discord.Net.Commands",
-    "version": "3.19.1",
-    "hash": "sha256-Tz1aibYD2EcjRJPp3wKk4iiDWRJnQkj+nVDUbMFwWlw="
+    "version": "3.20.1",
+    "hash": "sha256-xmpgSJSb+XAuJRm4aYgaWdNNFp21B2GAJaIQgQUSfxo="
   },
   {
     "pname": "Discord.Net.Core",
-    "version": "3.19.1",
-    "hash": "sha256-CH4Zv1tNVR99VDipLKaxI0yv+sFm5ER7FPX69xwLGW0="
+    "version": "3.20.1",
+    "hash": "sha256-y+tWhjkzAzMrsxr44H967mwSA1S7Dpgt9Spk8pQ0yu4="
   },
   {
     "pname": "Discord.Net.Dave",
-    "version": "3.19.1",
-    "hash": "sha256-LEx5aOU6JJTUSuQtwOZJTVOdxyJ9PWCjY1E06V2Yggk="
+    "version": "3.20.1",
+    "hash": "sha256-5ZrEPWF+jxJUPdy8mE5gUixhH7kt0ekhfrjui9ltsJw="
   },
   {
     "pname": "Discord.Net.Interactions",
-    "version": "3.19.1",
-    "hash": "sha256-BXCRgfnMi8/lZQEhIRGBU1qcyLdj1v+PBY2p29lrk3Q="
+    "version": "3.20.1",
+    "hash": "sha256-MNwin63HcpQ/IQblkHGtocpS2Is+bFxa5Wmj9HDBMDY="
   },
   {
     "pname": "Discord.Net.Rest",
-    "version": "3.19.1",
-    "hash": "sha256-TqNt+VwUivCJUawaauZYGPn8Mlb/1djwawYVisAtTZY="
+    "version": "3.20.1",
+    "hash": "sha256-Zc9mVcqzFJZZF1rcX41ye2UYxNMfWK06LCZ7jjvYFFc="
   },
   {
     "pname": "Discord.Net.Webhook",
-    "version": "3.19.1",
-    "hash": "sha256-b/HbDE5U+fxJ+Xdzstf7Rpoh3k/HVsHzlmLIm6bKbkw="
+    "version": "3.20.1",
+    "hash": "sha256-rdUqfBBPWGpNkK3bO6oNXKcW8kJ2qbaG0NSE1edLbac="
   },
   {
     "pname": "Discord.Net.WebSocket",
-    "version": "3.19.1",
-    "hash": "sha256-08G9OsLN5qA41cqb+lcLJ+IEv0FM/XvIXYHZXd31xHg="
+    "version": "3.20.1",
+    "hash": "sha256-1ExIFJOFFQF5kyitsvBiTMW3hm4SKGRCkHUEUjBi79E="
   },
   {
     "pname": "Microsoft.AspNetCore.Authentication.OpenIdConnect",
