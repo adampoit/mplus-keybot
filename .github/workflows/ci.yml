@@ -36,7 +36,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v17
 
       - name: Enable Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v13
+        uses: DeterminateSystems/magic-nix-cache-action@v14
 
       - name: Determine changed paths
         id: changes
@@ -99,7 +99,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v17
 
       - name: Enable Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v13
+        uses: DeterminateSystems/magic-nix-cache-action@v14
 
       - name: Check formatting
         run: nix develop --command alejandra --check .
@@ -127,7 +127,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v17
 
       - name: Enable Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v13
+        uses: DeterminateSystems/magic-nix-cache-action@v14
 
       - name: Run tests
         run: nix develop --command dotnet test --configuration Release
