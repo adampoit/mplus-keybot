@@ -96,18 +96,18 @@
   },
   {
     "pname": "Quartz",
-    "version": "3.17.1",
-    "hash": "sha256-LXSfptJHonMx0g3IYFMVdCzJf1rBsP/zHw3yTfT+TWw="
+    "version": "3.18.2",
+    "hash": "sha256-N4WnSGNJxG7ukXysecLxmacPvU1UAMxfWM4YsHjcaAg="
   },
   {
     "pname": "Quartz.Extensions.DependencyInjection",
-    "version": "3.17.1",
-    "hash": "sha256-fFG0YIFmmLoToRTPjJ9LgFDXOSyWfUsu+WzLfeeuaq8="
+    "version": "3.18.2",
+    "hash": "sha256-+PwIKzQh1mSFb0NoP58TZ2usTA4Y+VYPq3mjz3uMdn4="
   },
   {
     "pname": "Quartz.Extensions.Hosting",
-    "version": "3.17.1",
-    "hash": "sha256-mkvFMjd3hyONJoHuvR8XPu2dQm+4EtY2nGbK8tAJfdM="
+    "version": "3.18.2",
+    "hash": "sha256-ogCyVzSZ7S7o8tgJ9LowZagf6aiQz7tKpJrVQgkoHSQ="
   },
   {
     "pname": "SourceGear.sqlite3",
