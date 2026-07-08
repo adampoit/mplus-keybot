@@ -4,11 +4,13 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    nix-dotnet.url = "github:adampoit/nix-dotnet";
   };
 
   outputs = {
     self,
     flake-utils,
+    nix-dotnet,
     nixpkgs,
   }: let
     version = "0.0.0-g${self.shortRev or "dirty"}";
@@ -16,8 +18,15 @@
     flake-utils.lib.eachDefaultSystem (
       system: let
         pkgs = import nixpkgs {inherit system;};
+        dotnetSdk = nix-dotnet.lib.${system}.mkDotnet {
+          globalJsonPath = ./global.json;
+          outputHashes = {
+            aarch64-darwin = "sha256-pYkTL/7vXM/IR7mCaHAqGQ8pWPrDTOTIiGGAQA1T7+E=";
+            x86_64-linux = "sha256-G1EwWuFYwSL4N7Bv98eKPWuUa404gRWMur+95KFyY9g=";
+          };
+        };
         package = pkgs.callPackage ./nix/package.nix {
-          inherit version;
+          inherit dotnetSdk version;
         };
         api = package;
         web = package.web;
@@ -58,10 +67,10 @@
         };
 
         devShells.default = pkgs.mkShell {
-          packages = with pkgs; [
-            dotnetCorePackages.sdk_10_0
-            nodejs_24
-            alejandra
+          packages = [
+            dotnetSdk
+            pkgs.nodejs_24
+            pkgs.alejandra
           ];
 
           env = {
