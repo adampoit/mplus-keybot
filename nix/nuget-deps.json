@@ -86,8 +86,13 @@
   },
   {
     "pname": "Polly",
-    "version": "7.2.4",
-    "hash": "sha256-wQvK3XmQlplyI/duVkhM+iRhikGBLwrQ8cpcFJSIcFM="
+    "version": "8.7.0",
+    "hash": "sha256-iMNusWW+4nuIvkNLUaoru23Roe9vpC140TOIHbLvewE="
+  },
+  {
+    "pname": "Polly.Core",
+    "version": "8.7.0",
+    "hash": "sha256-1AT4Xym9hn2Awgul9WErwXk2bBPN58P9XfRExrIPItg="
   },
   {
     "pname": "Quartz",
