@@ -61,13 +61,13 @@
   },
   {
     "pname": "Microsoft.AspNetCore.Authentication.OpenIdConnect",
-    "version": "10.0.5",
-    "hash": "sha256-rsywtF8bSN/De2thXGDSsT2nBoeTBYkLxlQHQv7NG4k="
+    "version": "10.0.9",
+    "hash": "sha256-+fRq6oetJlK32C2R/nRBThcO+S6HTX6AIcfg12keAxU="
   },
   {
     "pname": "Microsoft.Extensions.Hosting.Systemd",
-    "version": "10.0.5",
-    "hash": "sha256-lIqyqE9xR9lVE2LmKBwo/u6X7VdicpvoVnhahsHvUbc="
+    "version": "10.0.9",
+    "hash": "sha256-tALcfeV/PtkybMCjEg5jqSgXRTGMpENBV+jRV1uOSRA="
   },
   {
     "pname": "Microsoft.IdentityModel.Abstractions",
