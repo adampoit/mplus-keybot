@@ -37,6 +37,8 @@ jobs:
 
       - name: Enable Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@v14
+        with:
+          use-gha-cache: disabled
 
       - name: Determine changed paths
         id: changes
