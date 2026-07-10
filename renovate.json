@@ -1,7 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
+  "minimumReleaseAge": "5 days",
+  "internalChecksFilter": "strict",
   "dependencyDashboard": true,
   "labels": ["automation"],
-  "enabledManagers": ["github-actions", "nuget", "npm", "nix"]
+  "schedule": ["* 0-6 * * 2"],
+  "enabledManagers": ["github-actions", "nuget", "npm", "nix"],
+  "packageRules": [
+    {
+      "description": "Group all non-major updates",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "all non-major dependencies"
+    }
+  ]
 }
