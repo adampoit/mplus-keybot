@@ -1,0 +1,4 @@
+# BEGIN github-settings convention
+/.github/CODEOWNERS @adampoit
+/.github/settings.yml @adampoit
+# END github-settings convention

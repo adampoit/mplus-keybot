@@ -1,0 +1,44 @@
+repository:
+  has_issues: true
+  has_projects: false
+  has_wiki: false
+  has_discussions: false
+
+  allow_merge_commit: false
+  allow_squash_merge: true
+  allow_rebase_merge: true
+  allow_auto_merge: true
+  allow_update_branch: true
+  delete_branch_on_merge: true
+  squash_merge_commit_title: PR_TITLE
+  squash_merge_commit_message: PR_BODY
+
+  enable_vulnerability_alerts: true
+
+rulesets:
+  - name: Default branch protection
+    target: branch
+    enforcement: active
+    bypass_actors:
+      - actor_id: 1825301
+        actor_type: User
+        bypass_mode: always
+    conditions:
+      ref_name:
+        include:
+          - '~DEFAULT_BRANCH'
+        exclude: []
+    rules:
+      - type: deletion
+      - type: non_fast_forward
+      - type: required_linear_history
+      - type: pull_request
+        parameters:
+          allowed_merge_methods:
+            - squash
+            - rebase
+          dismiss_stale_reviews_on_push: true
+          require_code_owner_review: true
+          require_last_push_approval: false
+          required_approving_review_count: 0
+          required_review_thread_resolution: true
