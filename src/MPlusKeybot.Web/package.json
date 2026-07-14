@@ -8,18 +8,18 @@
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
-    "@react-router/node": "8.1.0",
-    "@react-router/serve": "8.1.0",
+    "@react-router/node": "8.2.0",
+    "@react-router/serve": "8.2.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "react-router": "8.1.0"
+    "react-router": "8.2.0"
   },
   "devDependencies": {
-    "@react-router/dev": "8.1.0",
-    "@types/node": "25.9.4",
+    "@react-router/dev": "8.2.0",
+    "@types/node": "25.9.5",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "typescript": "6.0.3",
-    "vite": "8.1.3"
+    "vite": "8.1.4"
   }
 }
