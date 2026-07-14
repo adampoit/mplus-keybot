@@ -13,5 +13,8 @@
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "all non-major dependencies"
     }
-  ]
+  ],
+  "nix": {
+    "enabled": true
+  }
 }
