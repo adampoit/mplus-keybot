@@ -141,23 +141,23 @@
   },
   {
     "pname": "Quartz",
-    "version": "3.18.2",
-    "hash": "sha256-N4WnSGNJxG7ukXysecLxmacPvU1UAMxfWM4YsHjcaAg="
+    "version": "3.19.1",
+    "hash": "sha256-0uWJg7C371lgcarBF+Be09AfU2lr3E9zYDQdrA9UmkA="
   },
   {
     "pname": "Quartz.Extensions.DependencyInjection",
-    "version": "3.18.2",
-    "hash": "sha256-+PwIKzQh1mSFb0NoP58TZ2usTA4Y+VYPq3mjz3uMdn4="
+    "version": "3.19.1",
+    "hash": "sha256-M+WM0Wh0o3qbzspuFIRJre1bXI/I2RJ9/iT1yP0UgVI="
   },
   {
     "pname": "Quartz.Extensions.Hosting",
-    "version": "3.18.2",
-    "hash": "sha256-ogCyVzSZ7S7o8tgJ9LowZagf6aiQz7tKpJrVQgkoHSQ="
+    "version": "3.19.1",
+    "hash": "sha256-xIOUTGhIC9HVzWprB4wMgLXiSrsTr1dymsK/IXLMRu0="
   },
   {
-    "pname": "SourceGear.sqlite3",
-    "version": "3.50.4.5",
-    "hash": "sha256-yPOyLiK4QoTfE3IED0hFl1JJYjmt8RBB3fp1a1CwvqE="
+    "pname": "SQLite",
+    "version": "3.53.4",
+    "hash": "sha256-VkHrWOiEKf1z0J/ClL2qYQpumQmfQUHekSpeSqbXc8o="
   },
   {
     "pname": "sqlite-net-base",
@@ -166,13 +166,13 @@
   },
   {
     "pname": "SQLitePCLRaw.bundle_e_sqlite3",
-    "version": "3.0.3",
-    "hash": "sha256-TPRW+2PX4EPVC79or+ZxxD1cJtzf1CRckvEuGq2rY0o="
+    "version": "3.0.5",
+    "hash": "sha256-4yXOYahryjgfvTVIcmRIHhxqOWY1Rv7IIDX6ZhGYwqE="
   },
   {
     "pname": "SQLitePCLRaw.config.e_sqlite3",
-    "version": "3.0.3",
-    "hash": "sha256-Hwzxtx+/KLkZNWSs1btOMJMkgt23P0p98t7hUhbKShw="
+    "version": "3.0.5",
+    "hash": "sha256-HDkIERpKFOiYg5g2vqnE2jkO3GabKXxATekkIqvuOrE="
   },
   {
     "pname": "SQLitePCLRaw.core",
@@ -181,13 +181,13 @@
   },
   {
     "pname": "SQLitePCLRaw.core",
-    "version": "3.0.3",
-    "hash": "sha256-MLuN7KzfhWyVX3i4pi55KQp9J8JR83sCCveeUusDKqw="
+    "version": "3.0.5",
+    "hash": "sha256-dHa0uOBn2IxMtZijGJO1EQN7iOBcKNUk9LRDP+n2kEg="
   },
   {
     "pname": "SQLitePCLRaw.provider.e_sqlite3",
-    "version": "3.0.3",
-    "hash": "sha256-brVPu6YEBbKtfKrf5PV8sDZZsmlZFgL5Kse6FP01uF0="
+    "version": "3.0.5",
+    "hash": "sha256-EMbT2qxDK7OC3aBsNeX3/8zjYYeSFBvZFlZSfwbvWyU="
   },
   {
     "pname": "System.IdentityModel.Tokens.Jwt",
