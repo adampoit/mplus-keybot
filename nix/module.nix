@@ -110,6 +110,10 @@ in {
         (pkgs.callPackage (self + "/nix/package.nix") {
           inherit version;
           basePath = webCfg.basePath;
+          # The API package uses the flake's pinned nix-dotnet SDK. This call
+          # only rebuilds the web package, but package.nix still requires an
+          # SDK while constructing its combined output.
+          dotnetSdk = pkgs.dotnetCorePackages.sdk_10_0;
         }).web;
   in
     lib.mkMerge [
