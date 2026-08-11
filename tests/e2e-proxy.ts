@@ -46,6 +46,10 @@ const server = https.createServer(
 			response.end('upstream unavailable');
 		});
 
+		request.on('error', (error) => {
+			console.error(error);
+			upstream.destroy();
+		});
 		request.pipe(upstream);
 	},
 );

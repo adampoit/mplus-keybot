@@ -261,6 +261,8 @@ jobs:
 
       - name: Run E2E tests
         run: |
+          set -o pipefail
           nix develop --command node --experimental-strip-types tests/run-e2e.ts \
             "$RUNNER_TEMP/mplus-keybot-api" \
-            "$RUNNER_TEMP/mplus-keybot-web"
+            "$RUNNER_TEMP/mplus-keybot-web" 2>&1 | tee "$RUNNER_TEMP/e2e-output.txt"
+          grep -Eq 'Passed: [1-9][0-9]*' "$RUNNER_TEMP/e2e-output.txt"

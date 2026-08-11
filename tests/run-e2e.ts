@@ -233,7 +233,12 @@ async function run() {
 			'--filter',
 			'Category=E2E',
 		],
-		{},
+		{
+			MPLUS_KEYBOT_E2E_MODE: 'external',
+			MPLUS_KEYBOT_E2E_BASE_URL: publicBase,
+			MPLUS_KEYBOT_E2E_DATABASE_PATH: databasePath,
+			MPLUS_KEYBOT_E2E_TEST_SERVICES_URL: `http://127.0.0.1:${testServicesPort}`,
+		},
 		true,
 	);
 	return await waitForExit(tests);
