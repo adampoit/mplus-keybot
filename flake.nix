@@ -30,12 +30,18 @@
         };
         api = package;
         web = package.web;
+        webE2e =
+          (pkgs.callPackage ./nix/package.nix {
+            inherit dotnetSdk version;
+            basePath = "/mplus-keybot";
+          }).web;
         fetchDeps = package."fetch-deps";
       in {
         packages = {
           default = api;
           "mplus-keybot" = api;
           "mplus-keybot-web" = web;
+          "mplus-keybot-web-e2e" = webE2e;
           "fetch-deps" = fetchDeps;
         };
 
@@ -71,6 +77,7 @@
             dotnetSdk
             pkgs.nodejs_24
             pkgs.alejandra
+            pkgs.openssl
           ];
 
           env = {
