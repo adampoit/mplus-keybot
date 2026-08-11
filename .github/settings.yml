@@ -43,7 +43,9 @@ rulesets:
               integration_id: 15368
             - context: Nix build and checks
               integration_id: 15368
-            - context: .NET tests
+            - context: .NET unit tests
+              integration_id: 15368
+            - context: E2E tests
               integration_id: 15368
       - type: pull_request
         parameters:
