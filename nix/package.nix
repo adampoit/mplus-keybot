@@ -36,7 +36,7 @@
     };
   };
 
-  # React Router 7 SSR app. react-router-serve loads the server bundle from
+  # React Router SSR app. react-router-serve loads the server bundle from
   # <webRoot>/build/server/index.js and serves <webRoot>/build/client as static
   # assets, resolving both relative to its cwd, so the wrapper cds into the
   # shipped lib directory. Runtime deps (react, react-router, @react-router/serve
@@ -90,7 +90,7 @@
       cat > "$out/bin/mplus-keybot-web" <<EOF
       #!/bin/sh
       cd "$webRoot"
-      exec ${lib.getExe nodejs} "$webRoot/node_modules/@react-router/serve/bin.js" "$webRoot/build/server/index.js" "\$@"
+      exec ${lib.getExe nodejs} "$webRoot/node_modules/.bin/react-router-serve" "$webRoot/build/server/index.js" "\$@"
       EOF
       chmod +x "$out/bin/mplus-keybot-web"
 

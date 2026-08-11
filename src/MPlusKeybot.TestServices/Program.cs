@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore;
 using MPlusKeybot.TestServices;
+using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 
@@ -23,6 +25,8 @@ builder.WebHost.UseUrls($"http://127.0.0.1:{portNumber}");
 // so the discovery `issuer` and token `iss` claims match. Aspire launches us on
 // a fixed allocated port and points the app at http://localhost:<port>.
 var issuer = $"http://localhost:{portNumber}";
+var encryptionKey = new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32));
+var signingKey = new RsaSecurityKey(RSA.Create(2048));
 
 builder.Services.AddOpenIddict()
 	.AddServer(options =>
@@ -64,9 +68,10 @@ builder.Services.AddOpenIddict()
 			.Build());
 
 		// Battle.net's OIDC returns encrypted id_tokens, and the app's middleware
-		// expects to decrypt them, so register encryption + signing credentials.
-		options.AddDevelopmentEncryptionCertificate();
-		options.AddDevelopmentSigningCertificate();
+		// expects to decrypt them. In-memory keys keep this test service portable
+		// across runners without relying on platform certificate stores.
+		options.AddEncryptionKey(encryptionKey);
+		options.AddSigningKey(signingKey);
 
 		options.UseAspNetCore()
 			   .EnableAuthorizationEndpointPassthrough()

@@ -10,6 +10,7 @@ using SQLite;
 
 namespace MPlusKeybot.Tests;
 
+[Trait("Category", "E2E")]
 public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.AspireE2EFixture app) : IClassFixture<CharacterManagementE2ETests.AspireE2EFixture>
 {
 	[PlaywrightE2EFact]
@@ -200,9 +201,9 @@ public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.Aspi
 	{
 		public PlaywrightE2EFactAttribute()
 		{
-			if (!PlaywrightBrowserSession.IsChromiumInstalled())
+			if (!PlaywrightBrowserSession.IsChromiumInstalled() && !AspireE2EFixture.IsExternalMode)
 				Skip = "Install Playwright Chromium to run browser e2e tests.";
-			else if (!AspireE2EFixture.HasReactRouterDependencies())
+			else if (!AspireE2EFixture.IsExternalMode && !AspireE2EFixture.HasReactRouterDependencies())
 				Skip = "Run npm install in src/MPlusKeybot.Web to run browser e2e tests.";
 		}
 	}
@@ -233,11 +234,10 @@ public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.Aspi
 		private readonly IPlaywright m_playwright = playwright;
 	}
 
-	// Fixture built on Aspire.Hosting.Testing. It composes the production
-	// AppHost with test doubles (stub OpenIddict IdP + stub Blizzard API +
-	// announcement collector) via MPlusKeybotTestFactory, then exposes helpers
-	// to seed state, drive the real OIDC management-session flow, and assert
-	// against the isolated SQLite DB and the announcement collector.
+	// Fixture supports Aspire's development topology locally and externally
+	// started Nix packages in CI. Both modes use the same test doubles
+	// and helpers for the real OIDC management-session flow.
+#pragma warning disable CA1001 // xUnit owns async fixture disposal through IAsyncLifetime.
 	public sealed class AspireE2EFixture : IAsyncLifetime
 	{
 		public string BaseUrl { get; private set; } = string.Empty;
@@ -246,27 +246,59 @@ public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.Aspi
 		private MPlusKeybotTestApp? m_app;
 		private DistributedApplication? m_aspire;
 		private HttpClient? m_testServicesClient;
+		private string? m_databasePath;
+
+		public static bool IsExternalMode =>
+			string.Equals(Environment.GetEnvironmentVariable("MPLUS_KEYBOT_E2E_MODE"), "external", StringComparison.OrdinalIgnoreCase);
 
 		public static bool HasReactRouterDependencies() =>
 			File.Exists(Path.Combine(FindRepositoryRoot(), "src", "MPlusKeybot.Web", "node_modules", ".bin", "react-router"));
 
+		private static string RequiredEnvironment(string name) =>
+			Environment.GetEnvironmentVariable(name) is { Length: > 0 } value
+				? value
+				: throw new InvalidOperationException($"{name} must be set for E2E tests.");
+
+		private static string NormalizeBaseUrl(string value) => value.EndsWith('/') ? value : $"{value}/";
+
 		public async Task InitializeAsync()
 		{
-			if (!PlaywrightBrowserSession.IsChromiumInstalled() || !HasReactRouterDependencies())
+			if (!PlaywrightBrowserSession.IsChromiumInstalled())
+			{
+				if (IsExternalMode)
+					throw new InvalidOperationException("E2E tests require Playwright Chromium.");
+
 				return;
+			}
 
-			m_app = new MPlusKeybotTestApp();
-			await m_app.StartAsync().ConfigureAwait(false);
-			m_aspire = m_app.Application;
+			if (IsExternalMode)
+			{
+				BaseUrl = NormalizeBaseUrl(RequiredEnvironment("MPLUS_KEYBOT_E2E_BASE_URL"));
+				m_databasePath = RequiredEnvironment("MPLUS_KEYBOT_E2E_DATABASE_PATH");
+				m_testServicesClient = new HttpClient
+				{
+					BaseAddress = new Uri(NormalizeBaseUrl(RequiredEnvironment("MPLUS_KEYBOT_E2E_TEST_SERVICES_URL"))),
+				};
+			}
+			else
+			{
+				if (!HasReactRouterDependencies())
+					return;
 
-			BaseUrl = $"https://localhost:{MPlusKeybotTestApp.WebPort}/mplus-keybot/";
-			// The web endpoint is HTTPS with Aspire's self-signed dev cert; the
-			// readiness poller trusts it (Playwright uses IgnoreHTTPSErrors too).
+				m_app = new MPlusKeybotTestApp();
+				await m_app.StartAsync().ConfigureAwait(false);
+				m_aspire = m_app.Application;
+				m_databasePath = m_app.DatabasePath;
+				BaseUrl = $"https://localhost:{MPlusKeybotTestApp.WebPort}/mplus-keybot/";
+				m_testServicesClient = m_aspire.CreateHttpClient("test-services", "test-services-http");
+			}
+
+			// The web endpoint is HTTPS with Aspire's self-signed dev cert or the
+			// E2E proxy's self-signed certificate.
 			Client = new HttpClient(new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, _, _, _) => true })
 			{
 				BaseAddress = new Uri(BaseUrl),
 			};
-			m_testServicesClient = m_aspire.CreateHttpClient("test-services", "test-services-http");
 
 			await WaitForReadyAsync().ConfigureAwait(false);
 		}
@@ -278,8 +310,8 @@ public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.Aspi
 			if (m_aspire is not null)
 				await m_aspire.StopAsync().ConfigureAwait(false);
 			m_aspire?.Dispose();
-			if (m_app is not null && File.Exists(m_app.DatabasePath))
-				File.Delete(m_app.DatabasePath);
+			if (!IsExternalMode && m_databasePath is not null && File.Exists(m_databasePath))
+				File.Delete(m_databasePath);
 		}
 
 		// Seeds the stub Blizzard API with the verified characters and writes
@@ -337,7 +369,7 @@ public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.Aspi
 		// Drives the real management-session entrypoint: seeds a follow flow
 		// state (as Discord's /follow would), then visits /api/follow/start,
 		// which challenges the stub OIDC issuer, auto-approves, and lands the
-		// management cookie — exactly the production flow minus Discord.
+		// management cookie — exactly the app flow minus Discord.
 		public async Task StartManagementSessionAsync(IPage page)
 		{
 			ArgumentNullException.ThrowIfNull(page);
@@ -376,7 +408,7 @@ public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.Aspi
 			return announcements ?? [];
 		}
 
-		private SQLiteConnection OpenDatabase() => new(m_app!.DatabasePath);
+		private SQLiteConnection OpenDatabase() => new(m_databasePath ?? throw new InvalidOperationException("The E2E database has not been configured."));
 
 		private async Task WaitForReadyAsync()
 		{
@@ -400,7 +432,7 @@ public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.Aspi
 				await Task.Delay(500, cts.Token).ConfigureAwait(false);
 			}
 
-			throw new TimeoutException($"Timed out waiting for the Aspire app at {BaseUrl}.");
+			throw new TimeoutException($"Timed out waiting for the web app at {BaseUrl}.");
 		}
 
 		private static string FindRepositoryRoot()
@@ -414,6 +446,7 @@ public sealed class CharacterManagementE2ETests(CharacterManagementE2ETests.Aspi
 
 		private static readonly JsonSerializerOptions s_jsonOptions = new(JsonSerializerDefaults.Web);
 	}
+#pragma warning restore CA1001
 
 	public sealed record VerifiedCharacterDto(string Region, string Realm, string Name, long? BlizzardCharacterId, string? RealmDisplayName, int? Level, string? Class = null);
 	public sealed record E2EFollowedCharacterDto(VerifiedCharacterDto Character, int? CurrentScore, int? LastCheckedMinutesAgo);

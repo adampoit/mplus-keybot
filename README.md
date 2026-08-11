@@ -27,14 +27,14 @@ A Discord bot that tracks Mythic+ dungeon runs for your World of Warcraft guild 
 1. **Create a Discord bot** at [discord.com/developers](https://discord.com/developers) and invite it to your server
 2. **Create a Battle.net application** and configure the redirect URI to match `Web:PublicBaseUrl` plus `/api/auth/blizzard/callback`
 3. **Copy the example config** and add your Discord and Battle.net credentials:
-   ```bash
-   cp appsettings.example.json appsettings.json
-   # Edit appsettings.json with your Discord token and channel name
-   ```
+    ```bash
+    cp appsettings.example.json appsettings.json
+    # Edit appsettings.json with your Discord token and channel name
+    ```
 4. **Run it**:
-   ```bash
-   dotnet run --project src/MPlusKeybot.AppHost
-   ```
+    ```bash
+    dotnet run --project src/MPlusKeybot.AppHost
+    ```
 
 The bot will create `mplus-data.db` in the working directory.
 
@@ -61,19 +61,19 @@ cp appsettings.example.json appsettings.json
 
 ```json
 {
-  "Discord": {
-    "Token": "your-bot-token-here",
-    "Channel": "mythic-plus"
-  },
-  "Web": {
-    "PublicBaseUrl": "https://example.com/mplus-keybot",
-    "PathBase": "/mplus-keybot"
-  },
-  "Blizzard": {
-    "ClientId": "battle-net-client-id",
-    "ClientSecret": "battle-net-client-secret",
-    "Region": "us"
-  }
+	"Discord": {
+		"Token": "your-bot-token-here",
+		"Channel": "mythic-plus"
+	},
+	"Web": {
+		"PublicBaseUrl": "https://example.com/mplus-keybot",
+		"PathBase": "/mplus-keybot"
+	},
+	"Blizzard": {
+		"ClientId": "battle-net-client-id",
+		"ClientSecret": "battle-net-client-secret",
+		"Region": "us"
+	}
 }
 ```
 
@@ -139,13 +139,17 @@ Browser-side React fetches use same-origin `/api/...` URLs, handled by a generic
 dotnet test
 ```
 
-The Playwright character-management e2e tests run when Chromium is installed and are skipped otherwise:
+The Playwright character-management e2e tests run when Chromium and the local frontend dependencies are installed:
 
 ```bash
 dotnet build tests/MPlusKeybot.Tests/MPlusKeybot.Tests.csproj
 pwsh tests/MPlusKeybot.Tests/bin/Debug/net10.0/playwright.ps1 install chromium
+npm install --prefix src/MPlusKeybot.Web
 dotnet test --filter CharacterManagementE2ETests
 ```
+
+CI runs the same E2E scenarios against the Nix-built API and web packages with
+`tests/run-e2e.ts`, rather than the Aspire development server.
 
 ## Deployment
 

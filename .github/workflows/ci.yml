@@ -206,7 +206,7 @@ jobs:
         run: nix build --print-build-logs
 
   dotnet:
-    name: .NET tests
+    name: .NET unit tests
     needs: [nix-deps]
     if: |
       always() &&
@@ -224,5 +224,43 @@ jobs:
       - name: Enable Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@v14
 
-      - name: Run tests
-        run: nix develop --command dotnet test --configuration Release
+      - name: Run unit tests
+        run: nix develop --command dotnet test --configuration Release --filter "Category!=E2E"
+
+  e2e:
+    name: E2E tests
+    needs: [nix-deps]
+    if: |
+      always() &&
+      needs.nix-deps.result != 'failure' &&
+      needs.nix-deps.result != 'cancelled' &&
+      needs.nix-deps.outputs.updated != 'true'
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+
+      - name: Enable Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v14
+
+      - name: Build E2E packages
+        run: |
+          nix build .#mplus-keybot --print-build-logs --out-link "$RUNNER_TEMP/mplus-keybot-api"
+          nix build .#mplus-keybot-web-e2e --print-build-logs --out-link "$RUNNER_TEMP/mplus-keybot-web"
+
+      - name: Build E2E test services
+        run: nix develop --command dotnet build tests/MPlusKeybot.Tests/MPlusKeybot.Tests.csproj --configuration Release
+
+      - name: Install Playwright Chromium
+        run: pwsh tests/MPlusKeybot.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Run E2E tests
+        run: |
+          nix develop --command node --experimental-strip-types tests/run-e2e.ts \
+            "$RUNNER_TEMP/mplus-keybot-api" \
+            "$RUNNER_TEMP/mplus-keybot-web"
