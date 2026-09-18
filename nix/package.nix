@@ -62,7 +62,7 @@
 
     sourceRoot = "source/src/MPlusKeybot.Web";
 
-    npmDepsHash = "sha256-OhAF9bjUZgt95ESM5J6IroqeXn+BH5IxRPRwDzNI+jQ=";
+    npmDepsHash = "sha256-ze68DhIJhifcbj7jZ3JQfX9RJBtj8CnMdqUMbZN6008=";
 
     # BASE_PATH is read at build time by react-router.config.ts/vite.config.ts
     # and baked into the server manifest (basename/publicPath) and the client
