@@ -41,23 +41,23 @@
   },
   {
     "pname": "Microsoft.AspNetCore.App.Runtime.linux-arm64",
-    "version": "10.0.11",
-    "hash": "sha256-CVOpskG7iGBIlQc0T6MwFbYs14mcJnahiMGG+0CqKb8="
+    "version": "10.0.12",
+    "hash": "sha256-YjD+8vaI89ueZFCotXmOCGgQl7UZ0QzqOLtjt4ThzFo="
   },
   {
     "pname": "Microsoft.AspNetCore.App.Runtime.linux-x64",
-    "version": "10.0.11",
-    "hash": "sha256-4sblERXNZUJ1IirnCXFYe9lRQzbC+UiRCidP/NAE55E="
+    "version": "10.0.12",
+    "hash": "sha256-XjiD0oDaxWekvBmlKnVmm/luJL1B4p7J6huq+9GmqAA="
   },
   {
     "pname": "Microsoft.AspNetCore.App.Runtime.osx-arm64",
-    "version": "10.0.11",
-    "hash": "sha256-y6qcDRqUJh/Y613pQ1R7Os1JL/xhhARWJ7t1zQn6kJ4="
+    "version": "10.0.12",
+    "hash": "sha256-hQfg1wK8ZFHXz8QwP3lk/D+X8iNP5TCEiETEFcECFQ0="
   },
   {
     "pname": "Microsoft.AspNetCore.Authentication.OpenIdConnect",
-    "version": "10.0.11",
-    "hash": "sha256-QJT97xf0AFQFqr85zvyGJxt/68jWTFnNd7a/Ljx7TcE="
+    "version": "10.0.12",
+    "hash": "sha256-W3pYq6kIZR6brxV8cWBsgD+lyzVstN0vQ1579WC6Xd4="
   },
   {
     "pname": "Microsoft.Bcl.Cryptography",
@@ -66,8 +66,8 @@
   },
   {
     "pname": "Microsoft.Extensions.Hosting.Systemd",
-    "version": "10.0.11",
-    "hash": "sha256-7sRFk/rRzZE/L0pBnah7doIyhPK3zxsM+CUYttwRRrg="
+    "version": "10.0.12",
+    "hash": "sha256-QOgVeOuo0Zz3/erXmLKCUmExMXN/IDV2Zk8/qEAUcys="
   },
   {
     "pname": "Microsoft.IdentityModel.Abstractions",
@@ -101,28 +101,28 @@
   },
   {
     "pname": "Microsoft.NETCore.App.Host.linux-arm64",
-    "version": "10.0.11",
-    "hash": "sha256-zabIdizs75wfhVAbL68UCyf8jVJbSyu3dVf0ikx2pxo="
+    "version": "10.0.12",
+    "hash": "sha256-vVZtxuQITMug0/SKDECF0rUMALoDQLZfqzIXf9F0cKA="
   },
   {
     "pname": "Microsoft.NETCore.App.Host.osx-arm64",
-    "version": "10.0.11",
-    "hash": "sha256-TJf7ap8E1meszSeEVBvNDCg5TUCHv1PGYvpY9laxXgA="
+    "version": "10.0.12",
+    "hash": "sha256-rb1ubsGRFJj0MaqXotG7qdFZ/2DfDXdEy48ERXRKHjQ="
   },
   {
     "pname": "Microsoft.NETCore.App.Runtime.linux-arm64",
-    "version": "10.0.11",
-    "hash": "sha256-ciKPW+fnHY21zZ32Vx5Rocao0W8yk0M5OqhaG9ZnPRo="
+    "version": "10.0.12",
+    "hash": "sha256-cmiDncoexnfUyZCLTlI5XUwAPGmJVQ0LjpZZI6SnADY="
   },
   {
     "pname": "Microsoft.NETCore.App.Runtime.linux-x64",
-    "version": "10.0.11",
-    "hash": "sha256-3sEsS07V0nOWaSQ3VkkwkLsPewE6M6DrhOx3QoqKsco="
+    "version": "10.0.12",
+    "hash": "sha256-iGni+5dLyBD/5AuPuOGLf/sdGgPlKglMgEZoxNeTsa4="
   },
   {
     "pname": "Microsoft.NETCore.App.Runtime.osx-arm64",
-    "version": "10.0.11",
-    "hash": "sha256-a3NUldtiRkqJrShmem4SBmsewV877kWx/Ii56SrqyI0="
+    "version": "10.0.12",
+    "hash": "sha256-Lw5y/feerZHQ4a1JYOo6m966G3ywhGfj6tCkJ9H9Lgg="
   },
   {
     "pname": "Newtonsoft.Json",
@@ -141,18 +141,18 @@
   },
   {
     "pname": "Quartz",
-    "version": "3.20.0",
-    "hash": "sha256-sK2bOtnVlvjBahpsBC+2LiNUdlwdvHSEOqGhgBswCRE="
+    "version": "3.22.0",
+    "hash": "sha256-SNChrT9BWCVlsRRP0PPcBYMiLMBUmkT5De6zjfNpeDs="
   },
   {
     "pname": "Quartz.Extensions.DependencyInjection",
-    "version": "3.20.0",
-    "hash": "sha256-cdQ8DeyyD+Y4w2VT839GAt03Go3mVhvvJyDzRCIodv4="
+    "version": "3.22.0",
+    "hash": "sha256-7XfdqQYR2oZ7ccZbmd2ve3PZ+Evx1jgFz737NBWSkzM="
   },
   {
     "pname": "Quartz.Extensions.Hosting",
-    "version": "3.20.0",
-    "hash": "sha256-wuo4WRToPz1AMvLM/kUTtSSv594oxxeWGibB39V0GSw="
+    "version": "3.22.0",
+    "hash": "sha256-lM6dhetQaTvuoBsm2UMA2vSEwxxUw1A1xbwsjF/+8Qo="
   },
   {
     "pname": "SQLite",
