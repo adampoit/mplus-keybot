@@ -14,9 +14,9 @@
     <PackageVersion Include="Microsoft.Playwright" Version="1.62.0" />
     <PackageVersion Include="OpenIddict.Server.AspNetCore" Version="7.6.1" />
     <PackageVersion Include="Polly" Version="8.7.0" />
-    <PackageVersion Include="Quartz" Version="3.20.0" />
-    <PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="3.20.0" />
-    <PackageVersion Include="Quartz.Extensions.Hosting" Version="3.20.0" />
+    <PackageVersion Include="Quartz" Version="4.1.0" />
+    <PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="4.1.0" />
+    <PackageVersion Include="Quartz.Extensions.Hosting" Version="4.1.0" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageVersion Include="sqlite-net-base" Version="1.9.172" />
     <PackageVersion Include="xunit" Version="2.9.3" />
