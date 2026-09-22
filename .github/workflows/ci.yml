@@ -126,7 +126,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v22
 
       - name: Enable Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v14
+        uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: Download .NET SDK hashes
         if: needs.nix-deps-changes.outputs.dotnet_sdk == 'true'
@@ -194,7 +194,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v22
 
       - name: Enable Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v14
+        uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: Check formatting
         run: nix develop --command alejandra --check .
@@ -222,7 +222,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v22
 
       - name: Enable Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v14
+        uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: Run unit tests
         run: nix develop --command dotnet test --configuration Release --filter "Category!=E2E"
@@ -246,7 +246,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v22
 
       - name: Enable Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v14
+        uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: Build E2E packages
         run: |
