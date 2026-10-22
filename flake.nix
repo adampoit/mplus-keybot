@@ -21,8 +21,8 @@
         dotnetSdk = nix-dotnet.lib.${system}.mkDotnet {
           globalJsonPath = ./global.json;
           outputHashes = {
-            aarch64-darwin = "sha256-mFRTF+XXUh/2pMkZdabSkcb+K9pSSLS5jgTF7y7BObY=";
-            x86_64-linux = "sha256-6tJVyb7UeQH2EFCoNChehCSib/2+y9apGhv09GQLQPc=";
+            aarch64-darwin = "sha256-6ORSe323E5zZXPAQWL6XzKEGPW6qMD75EWePCO3YnaM=";
+            x86_64-linux = "sha256-6vLFrDppFQi755Lg3PMckOnHVb0Dms3i8KONlSax0Ak=";
           };
         };
         package = pkgs.callPackage ./nix/package.nix {
