@@ -141,18 +141,18 @@
   },
   {
     "pname": "Quartz",
-    "version": "3.22.7",
-    "hash": "sha256-eP5AmF6BEtQ8rmkTJ0T0gcrK4bA3ay1E8Vn4YStr9AQ="
+    "version": "4.6.0",
+    "hash": "sha256-dOlwecqpd7QNJ4Ehza+Np86qjigEMcC8eSaGZzjnXfo="
   },
   {
     "pname": "Quartz.Extensions.DependencyInjection",
-    "version": "3.22.7",
-    "hash": "sha256-9tm0pCUL35uaQjRaT1RSnPy3dgLDqvuWhH0j4NhKwlI="
+    "version": "4.6.0",
+    "hash": "sha256-s8CHyol7BGOfcxH5EcaEpiN+G26BrVOEb5UTeIipUt4="
   },
   {
     "pname": "Quartz.Extensions.Hosting",
-    "version": "3.22.7",
-    "hash": "sha256-7zj6a9bXf0ULWS//oIYo5goA+p2AVJ33ciCmJ1wFqdA="
+    "version": "4.6.0",
+    "hash": "sha256-jlCcyq5BgqjCwqMdm0+NeAxEGN5rOOvxUPx1fHLafTI="
   },
   {
     "pname": "SQLite",
